@@ -1,0 +1,6 @@
+RewriteEngine On
+RewriteBase /f/
+
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(.*)$ index.php?invoice_id=$1 [QSA,L]

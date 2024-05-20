@@ -1,0 +1,133 @@
+Women,Hair Cut,450,20
+Women,Hair Wash,165,20
+Women,Blow Dry,300,20
+Women,Texture,900,20
+Women,Advance hair Cut,700,20
+Women,Head Massage,550,20
+Women,Deep conditioning,500,20
+Women,Ironing,440,20
+Women,Split end treatment,530,20
+Women,Root touchup,1050,20
+Women,Color global,3500,20
+Women,Color highlights,3500,20
+Women,Color per streak,450,20
+Women,High on fashion,4200,20
+Women,Smoothening,4990,20
+Women,Rebonding,4990,20
+Women,Silk straight services,4990,20
+Women,Keratin GK,4000,20
+Women,Keratin PRO,2000,20
+Women,Spa ,1050,20
+Women,Assorted hair care services,1500,20
+Women,Assorted scalp care services,2000,20
+Women,OLA plex,2500,20
+Men,Hair Cut,250,20
+Men,Hair Wash,130,20
+Men,Head Massage,399,20
+Men,Shave,165,20
+Men,Beard trim,165,20
+Men,Design in beard trim,185,20
+Men,Color Global,1050,20
+Men,Color Highlights,1050,20
+Men,Beard color,250,20
+Men,Beard styling,165,20
+Men,Moustaches,120,20
+Men,Cheeks threading,40,20
+Men,Spa ,799,20
+Men,Assorted hair care services,999,20
+Men,Assorted scalp care services,999,20
+Men,OLA plex,1999,20
+Wax,Half Arms Basic,150,20
+Wax,Half Arms Classic,250,20
+Wax,Full Arms Basic,220,20
+Wax,Full Arms Classic,380,20
+Wax,Half Legs Basic,250,20
+Wax,Half Legs Classic,350,20
+Wax,Full Legs Basic,300,20
+Wax,Full Legs Classic,550,20
+Wax,underarms basic,80,20
+Wax,underarms classic,140,20
+Wax,half front back basic,200,20
+Wax,half front back classic,330,20
+Wax,full front back basic,350,20
+Wax,full front back classic,530,20
+Wax,brazillian wax basic,750,20
+Wax,brazilian wax classic,1100,20
+Wax,face basic,150,20
+Wax,face classic,250,20
+Wax,side locks basic,80,20
+Wax,side locks classic,130,20
+Wax,under Lip basic,50,20
+Wax,Under Lip classic,75,20
+Wax,Full Body Basic,2000,20
+Wax,Full Body Classic,3000,20
+Bleach,full arms basic,320,20
+Bleach,full arms classic,370,20
+Bleach,full legs basic,430,20
+Bleach,full legs classic,480,20
+Bleach,face & neck basic,300,20
+Bleach,face & neck classic,500,20
+Bleach,front basic,190,20
+Bleach,front classic,390,20
+Bleach,full front + back basic,450,20
+Bleach,full front + back classic,600,20
+Bleach,hands/ feet basic,110,20
+Bleach,hands/ feet classic,160,20
+Bleach,full body basic,1499,20
+Bleach,full body classic,2100,20
+Bleach,cheryl bleach,500,20
+Bleach,oxy bleach,400,20
+Threading,eyebrow,40,20
+Threading,upperlip,30,20
+Threading,chin/cheeks,30,20
+Threading,forehead,40,20
+Threading,sides,40,20
+Threading,full face,150,20
+Threading,lower lip,30,20
+Cleanup,aromatic cleansing,850,20
+Cleanup,signature therapy O3,1150,20
+Cleanup,cheryl cleanup,1500,20
+Cleanup,seaweed cleanup,1500,20
+Facial,insta glow,1050,20
+Facial,de tan,1350,20
+Facial,chocolate indulgence,1550,20
+Facial,chocolate therapy,1800,20
+Facial,gold lusture,1800,20
+Facial,skin foundation O3,2250,20
+Facial,diamond sparkle,2700,20
+Facial,age control line,3500,20
+Facial,cheryl,3000,20
+Facial,raga,1800,20
+Nail Care,gel extension,2499,20
+Nail Care,aycerlic nail extension,2999,20
+Nail Care,overlay,1499,20
+Nail Care,permanent nail paint,999,20
+Nail Care,extension removing,999,20
+Nail Care,refilling nail's,799,20
+Nail Care,permanent nail art per finger,499,20
+Nail Care,3D art,499,20
+Nail Care,nail file hands/feet,99,20
+Nail Care,nail paint hands/feet ,149,20
+Nail Care,french nail paint hands/feet,249,20
+Manicure/ Pedicure,manicure basic,450,20
+Manicure/ Pedicure,pedicure basic,500,20
+Manicure/ Pedicure,manicure french,600,20
+Manicure/ Pedicure,pedicure french,650,20
+Manicure/ Pedicure,manicure parafin,630,20
+Manicure/ Pedicure,pedicure parafin,750,20
+Manicure/ Pedicure,manicure dead sea,750,20
+Manicure/ Pedicure,pedicure dead sea,850,20
+Manicure/ Pedicure,manicure crystal,750,20
+Manicure/ Pedicure,pedicure crystal,900,20
+Makeup,party makeup ( krylon),2500,20
+Makeup,party makeup (makeup studio),3000,20
+Makeup,party makeup (mac),4500,20
+Makeup,engagement ( krylon),6000,20
+Makeup,engagement (makeup studio),7000,20
+Makeup,engagement (mac),8500,20
+Makeup,bridal ( krylon),10000,20
+Makeup,bridal (makeup studio),13000,20
+Makeup,bridal (mac),16000,20
+Makeup,reception ( krylon),7000,20
+Makeup,reception  (makeup studio),8000,20
+Makeup,reception  (mac),11000,20

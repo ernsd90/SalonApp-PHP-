@@ -1,0 +1,1 @@
+RewriteRule ^paidbill/(.*)/(.*)$ /print_invoice.php?invoice_id=$1&view=1 [R=301,NC,L]

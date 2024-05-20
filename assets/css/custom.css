@@ -1,0 +1,23 @@
+.typeahead.dropdown-menu {
+    background: #f5f5f5;
+    border: 1px solid #eee;
+    height: auto;
+    padding: 0;
+}
+
+.typeahead.dropdown-menu a {
+    display: block !important;
+    padding: 3px 10px;
+    background: #fafafa;
+    margin: 2px 0;
+    color: #333;
+    letter-spacing: 0.5px;
+}
+
+.typeahead.dropdown-menu a strong {
+    color: #000;
+}
+
+.deleted_redClass {
+    background-color: coral !important;
+}
