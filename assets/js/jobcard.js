@@ -32,9 +32,6 @@ $("input.cust_mob").typeahead({
 });
 
 
-
-
-
 function get_customerfrom_mob(item) {
 
     var value = item.value;
@@ -349,6 +346,33 @@ $(document).ready(function() {
         });
     });
 
+
+
+
+
+        var get_service = $('#get_job_cards').DataTable({
+            "processing": true,
+            "serverSide": true,
+            scrollX: true,
+            responsive: true,
+            scrollX: true,
+            responsive: true,
+            "ajax": {
+                "url": "ajax/salon_ajax.php",
+                "type": "POST",
+                "data": {
+                    "method": "get_job_cards"
+                }
+            },
+            "columns": [
+                { "title": "Date","data": "created_at" },
+                { "title": "Customer Name","data": "cust_name" },
+                { "title": "Cust Mobile","data": "cust_mobile" },
+                { "title": "Salon","data": "salon_name" },
+                { "title": "Status","data": "jobcard_status" },
+                { "title": "Action","data": "action", "orderable": false },
+            ]
+        });
 
 
 });

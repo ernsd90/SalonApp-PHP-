@@ -45,7 +45,7 @@ if (isset($_POST['cust_mob'])) {
             $job_card_id = $job_card['job_card_id'];
 
             // Update the job card (if necessary)
-            $sql = "UPDATE `hr_jobcard` SET `updated_at` = NOW() WHERE `job_card_id` = '".$job_card_id."'";
+            $sql = "UPDATE `hr_jobcard` SET `updated_at` = '".$date_now."' WHERE `job_card_id` = '".$job_card_id."'";
             update_query($sql);
 
             // Loop through services and update or insert
@@ -62,7 +62,7 @@ if (isset($_POST['cust_mob'])) {
                     $new_status = 'updated';
 
                     // Update existing job card service
-                     $sql = "UPDATE `hr_jobcardservice` SET `status` = '".$new_status."', `service_remark` = '".$service_remarks."', `added_by` = '".$user_id."', `added_at` = NOW() WHERE `job_card_service_id` = '".$existing_service['job_card_service_id']."'";
+                     $sql = "UPDATE `hr_jobcardservice` SET `status` = '".$new_status."', `service_remark` = '".$service_remarks."', `added_by` = '".$user_id."', `added_at` = '".$date_now."' WHERE `job_card_service_id` = '".$existing_service['job_card_service_id']."'";
                     update_query($sql);
                     $job_card_service_id = $existing_service['job_card_service_id'];
 
@@ -72,7 +72,7 @@ if (isset($_POST['cust_mob'])) {
 
                 } else {
                     // Insert new job card service
-                    $sql = "INSERT INTO `hr_jobcardservice` SET `salon_id` = '".$salon_id."', `job_card_id` = '".$job_card_id."', `service_id` = '".$service_id."', `added_by` = '".$user_id."', `added_at` = NOW(), `status` = 'initial', `service_remark` = '".$service_remarks."'";
+                    $sql = "INSERT INTO `hr_jobcardservice` SET `salon_id` = '".$salon_id."', `job_card_id` = '".$job_card_id."', `service_id` = '".$service_id."', `added_by` = '".$user_id."', `added_at` = '".$date_now."', `status` = 'initial', `service_remark` = '".$service_remarks."'";
                     $job_card_service_id = insert_query($sql);
                 }
 
@@ -82,12 +82,12 @@ if (isset($_POST['cust_mob'])) {
 
                     if ($existing_staff) {
                         // Update existing job card staff
-                        $sql = "UPDATE `hr_jobcardstaff` SET `updated_at` = NOW(), `delete_status` = 'active' WHERE `job_card_staff_id` = '".$existing_staff['job_card_staff_id']."'";
+                        $sql = "UPDATE `hr_jobcardstaff` SET `updated_at` = '".$date_now."', `delete_status` = 'active' WHERE `job_card_staff_id` = '".$existing_staff['job_card_staff_id']."'";
                         update_query($sql);
                         $job_card_staff_id = $existing_staff['job_card_staff_id'];
                     } else {
                         // Insert new job card staff
-                        $sql = "INSERT INTO `hr_jobcardstaff` SET `salon_id` = '".$salon_id."', `job_card_id` = '".$job_card_id."', `staff_id` = '".$staff_id."', `job_card_service_id` = '".$job_card_service_id."', `assigned_at` = NOW(), `delete_status` = 'active'";
+                        $sql = "INSERT INTO `hr_jobcardstaff` SET `salon_id` = '".$salon_id."', `job_card_id` = '".$job_card_id."', `staff_id` = '".$staff_id."', `job_card_service_id` = '".$job_card_service_id."', `assigned_at` = '".$date_now."', `delete_status` = 'active'";
                         $job_card_staff_id = insert_query($sql);
                     }
                 }
@@ -99,7 +99,7 @@ if (isset($_POST['cust_mob'])) {
         }
     } else {
         // Create a new job card
-        $sql = "INSERT INTO `hr_jobcard` SET `salon_id` = '".$salon_id."', `cust_id` = '".$cust_id."', `created_by` = '".$user_id."', `created_at` = NOW()";
+        $sql = "INSERT INTO `hr_jobcard` SET `salon_id` = '".$salon_id."', `cust_id` = '".$cust_id."', `created_by` = '".$user_id."', `created_at` = '".$date_now."'";
         $job_card_id = insert_query($sql);
 
         if ($job_card_id > 0) {
@@ -107,13 +107,13 @@ if (isset($_POST['cust_mob'])) {
                 if ($service_id == 0) continue; // Skip if service is not selected
 
                 // Insert job card service
-                $sql = "INSERT INTO `hr_jobcardservice` SET `salon_id` = '".$salon_id."', `job_card_id` = '".$job_card_id."', `service_id` = '".$service_id."', `added_by` = '".$user_id."', `added_at` = NOW(), `status` = 'initial', `service_remark` = '".$service_remark[$key]."'";
+                $sql = "INSERT INTO `hr_jobcardservice` SET `salon_id` = '".$salon_id."', `job_card_id` = '".$job_card_id."', `service_id` = '".$service_id."', `added_by` = '".$user_id."', `added_at` = '".$date_now."', `status` = 'initial', `service_remark` = '".$service_remark[$key]."'";
                 $job_card_service_id = insert_query($sql);
 
                 // Link staff with services
                 foreach ($service_staff[$key] as $staff_id) {
                     // Insert job card staff
-                    $sql = "INSERT INTO `hr_jobcardstaff` SET `salon_id` = '".$salon_id."', `job_card_id` = '".$job_card_id."', `staff_id` = '".$staff_id."', `job_card_service_id` = '".$job_card_service_id."', `assigned_at` = NOW(), `delete_status` = 'active'";
+                    $sql = "INSERT INTO `hr_jobcardstaff` SET `salon_id` = '".$salon_id."', `job_card_id` = '".$job_card_id."', `staff_id` = '".$staff_id."', `job_card_service_id` = '".$job_card_service_id."', `assigned_at` = '".$date_now."', `delete_status` = 'active'";
                     $job_card_staff_id = insert_query($sql);
                 }
             }

@@ -34,13 +34,15 @@ if(isset($_POST['cust_mob'])){
     $invoice_number = select_row("SELECT MAX(invoice_number) + 1 as invoice_number FROM `hr_invoice` WHERE `salon_id` = '".$salon_id."'");
     $invoice_number = $invoice_number['invoice_number'];
 
-    // Update existing job card
-    $sql = "UPDATE `hr_jobcard` SET jobcard_status='2',`updated_at` = NOW() WHERE `job_card_id` = '".$job_card_id."'";
-    update_query($sql);
+    
 
 
     $sql = "INSERT INTO `hr_invoice` SET `salon_id` = '".$salon_id."', `cust_ref_by` = '".$cust_reffer."', `invoice_number` = '".$invoice_number."', `billing_remark` = '".$billing_remark."', `user_id` = '".$user_id."', `cust_id` = '".$cust_id."', `cust_name` = '".$cust_name."', `cust_mob` = '".$cust_mob."', `extra_fee` = '".$extra_tax."', `invoice_date` = '".$date_now."'";
     $invoice_id = insert_query($sql);
+
+    // Update existing job card
+    $sql = "UPDATE `hr_jobcard` SET jobcard_status='2',invoice_id='".$invoice_id."',`updated_at` = '".$date_now."' WHERE `job_card_id` = '".$job_card_id."'";
+    update_query($sql);
 
     $totol_gst = 0;
     $service_total_with_tax = 0;

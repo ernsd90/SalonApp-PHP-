@@ -1237,6 +1237,68 @@ function jobcard_service_delete(){
     return array("msg" => $msg,"error"=>$error);
 }
 
+function get_job_cards(){
+
+    extract($_REQUEST);
+
+    global $user_id, $salon_id;
+
+    $loginuser_id = $user_id;
+    if($search['value'] != ''){
+        $search_value = $search['value'];
+        $where = " and (c.cust_name LIKE '%".$search_value."%')";
+    }
+
+    if (isset($start)) { $page  = $start; } else { $page=1; };
+    $start_from = $start;
+
+    $sql = ("SELECT jc.job_card_id, jc.created_at, c.cust_name, c.cust_mobile, s.salon_name, jc.jobcard_status
+    FROM hr_jobcard jc
+    JOIN hr_customer c ON jc.cust_id = c.cust_id
+    JOIN hr_salon s ON jc.salon_id = s.salon_id
+    JOIN hr_user u ON jc.created_by = u.user_id
+    WHERE jc.salon_id = '".$salon_id."' $where
+    ORDER BY jc.created_at DESC ");
+
+    $total_records = num_rows($sql);
+
+    $sql .= " LIMIT $start_from, $length";
+
+    $user = select_array($sql);
+    $data = array();
+    $userdata = array();
+    $i=0;
+    foreach($user as $users){
+        extract($users);
+        $edit_btn = '';
+
+       
+        if($jobcard_status !== '2') {
+            
+            $edit_btn = ' <a class="btn btn-xs btn-outline-info " href="'.DOMAIN_SOFTWARE.'job_card.php?job_card_id='.$job_card_id.'"> <i class="fa fa-edit"></i> </a> ';
+
+            $edit_btn .= ' <a class="btn btn-xs btn-outline-info " href="'.DOMAIN_SOFTWARE.'billing_service.php?job_card_id='.$job_card_id.'"> <i class="fa fa-money"></i> </a> ';
+            
+        }
+        $edit_btn .= ' <a class="btn btn-xs btn-outline-info" href="'.DOMAIN_SOFTWARE.'print_jobcard.php?job_card_id='.$job_card_id.'"> <i class="fa fa-print"></i> </a> ';
+
+        $userdata[$i] = $users;
+        $userdata[$i]['created_date'] = date("d-m-Y",strtotime($created_date));
+        $userdata[$i]['balance'] = number_format($pending_payment);
+        $userdata[$i]['action'] = $edit_btn;
+
+
+        $i++;
+    }
+
+    $data['recordsTotal'] = $total_records;
+    $data['recordsFiltered'] = $total_records;
+    $data['data'] = $userdata;
+
+    return $data;
+
+}
+
 
 
 ?>
