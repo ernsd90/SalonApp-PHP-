@@ -1,0 +1,136 @@
+Women,Hair Cut,500,21
+Women,Hair Wash,200,21
+Women,Hair wash &Blow Dry,300,21
+Women,Texture,900,21
+Women,Advance hair Cut,500,21
+Women,Head Massage,600,21
+Women,Deep conditioning,500,21
+Women,Ironing,600,21
+Women,Root touchup loreal,1350,21
+Women,Root touchup matrix,1000,21
+Women,Roottuchup Inova,1550,21
+Women,Color highlights,3500,21
+Women,Color per streak,450,21
+Women,Global colour matrix,3500,21
+Women,global colour loreal,4000,21
+Women,Inova colour,4990,21
+Women,Silk straight services,4990,21
+Women,Keratin ,4000,21
+Women,Smoothening (Acc to lenth),4500,21
+Women,Rebounding,4000,21
+Women,Assorted hair care services,1500,21
+Women,Assorted scalp care services,2000,21
+Women,spa loreal,1200,21
+Women,spa matrix,1000,21
+Women,spa basic,750,21
+Men,Hair cut,300,21
+Men,Shave,100,21
+Men,Beard trim,150,21
+Men,Design in beard trim,185,21
+Men,Color Global,1050,21
+Men,Color Highlights,1050,21
+Men,Beard color,250,21
+Men,global colour loreal,1050,21
+Men,global colour inova,1200,21
+Men,global colour matrix,800,21
+Men,Spa ,500,21
+Men,Assorted hair care services,999,21
+Men,Assorted scalp care services,999,21
+Men,body massage,1700,21
+Wax,Half Arms Basic,200,21
+Wax,Half Arms Classic,300,21
+Wax,Full Arms Basic,300,21
+Wax,Full Arms Classic,400,21
+Wax,Half Legs Basic,300,21
+Wax,Half Legs Classic,450,21
+Wax,Full Legs Basic,400,21
+Wax,Full Legs Classic,650,21
+Wax,underarms basic,100,21
+Wax,underarms classic,150,21
+Wax,half front back basic,300,21
+Wax,half front back classic,400,21
+Wax,full front back basic,400,21
+Wax,full front back classic,530,21
+Wax,brazillian wax basic,750,21
+Wax,brazilian wax classic,1100,21
+Wax,face basic,150,21
+Wax,face classic,250,21
+Wax,side locks basic,80,21
+Wax,side locks classic,130,21
+Wax,under Lip basic,50,21
+Wax,Under Lip classic,75,21
+Wax,Full Body Basic,2700,21
+Wax,Full Body Classic,3500,21
+Bleach,full arms basic,320,21
+Bleach,full arms classic,370,21
+Bleach,full legs basic,430,21
+Bleach,full legs classic,480,21
+Bleach,face & neck basic,300,21
+Bleach,face & neck classic,500,21
+Bleach,front basic,190,21
+Bleach,front classic,390,21
+Bleach,full front + back basic,450,21
+Bleach,full front + back classic,600,21
+Bleach,hands/ feet basic,110,21
+Bleach,hands/ feet classic,160,21
+Bleach,full body basic,1850,21
+Bleach,full body classic,2000,21
+Bleach,cheryl bleach,500,21
+Bleach,oxy bleach,400,21
+Threading,eyebrow,50,21
+Threading,upperlip,30,21
+Threading,chin/cheeks,30,21
+Threading,forehead,40,21
+Threading,sides,40,21
+Threading,full face,150,21
+Threading,lower lip,30,21
+Cleanup,aromatic cleansing,850,21
+Cleanup,O+3 cleanup,1300,21
+Cleanup,cheryl cleanup,1000,21
+Cleanup,Aroma cleanup,800,21
+Facial,insta glow,1050,21
+Facial,de tan,1350,21
+Facial,Aroma pearl/Diamond,1800,21
+Facial,Aroma skin glow,1250,21
+Facial,Aroma gold,1500,21
+Facial,Aroma bridal,1800,21
+Facial,diamond ragga,2700,21
+Facial,Cheryls (age control line),2500,21
+Facial,cheryl,2600,21
+Facial,raga,1000,21
+Nail Care,gel extension,2499,21
+Nail Care,aycerlic nail extension,2999,21
+Nail Care,overlay,1499,21
+Nail Care,permanent nail paint,999,21
+Nail Care,extension removing,999,21
+Nail Care,refilling nail's,799,21
+Nail Care,permanent nail art ( per finger),499,21
+Nail Care,3D art,499,21
+Nail Care,nail file hands/feet,99,21
+Nail Care,nail paint hands/feet ,149,21
+Nail Care,french nail paint hands/feet,249,21
+Manicure/ Pedicure,manicure basic,500,21
+Manicure/ Pedicure,pedicure basic,600,21
+Manicure/ Pedicure,manicure french,600,21
+Manicure/ Pedicure,pedicure french,650,21
+Manicure/ Pedicure,manicure (Ragga),550,21
+Manicure/ Pedicure,Pedicure(Ragga),650,21
+Manicure/ Pedicure,manicure dead sea,750,21
+Manicure/ Pedicure,pedicure dead sea,850,21
+Manicure/ Pedicure,manicure crystal,750,21
+Manicure/ Pedicure,pedicure crystal,900,21
+Makeup,party makeup ( krylon),2500,21
+Makeup,party makeup (makeup studio),3000,21
+Makeup,party makeup (mac),4500,21
+Makeup,engagement ( krylon),6000,21
+Makeup,engagement (makeup studio),7000,21
+Makeup,engagement (mac),8500,21
+Makeup,bridal ( krylon),10000,21
+Makeup,bridal (makeup studio),13000,21
+Makeup,bridal (mac),16000,21
+Makeup,reception ( krylon),7000,21
+Makeup,reception  (makeup studio),8000,21
+Makeup,reception  (mac),11000,21
+Makeup,dress draping,600,21
+Makeup,hai do bun,800,21
+Makeup,hair do open,600,21
