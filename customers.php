@@ -31,6 +31,7 @@ include 'header.php';
                         <th>Mobile</th>
                         <th>Wallet Balance</th>
                         <th>Outstanding Debt</th>
+                        <th>Loyalty Points</th>
                         <th style="width: 140px;">Actions</th>
                     </tr>
                 </thead>
@@ -89,6 +90,15 @@ $(document).ready(function() {
                "render": function(data) {
                    if(data > 0) return '<span style="color:var(--danger); font-weight:600;">₹' + data + '</span>';
                    return '<span style="color:var(--text-muted);">₹0</span>';
+               }
+            },
+            { 
+               "data": "loyalty_points",
+               "orderable": false,
+               "render": function(data) {
+                   var pts = parseInt(data);
+                   if(pts > 0) return '<span style="color:#7c3aed; font-weight:600;"><i class="ph-fill ph-crown" style="font-size:14px; vertical-align:middle; margin-right:4px;"></i> ' + data + '</span>';
+                   return '<span style="color:var(--text-muted);">0 pts</span>';
                }
             },
             { 

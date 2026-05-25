@@ -114,6 +114,7 @@ function summary_sale(){
         $data['service_total'] = ($data['service_total'] ?? 0) + ($pure_service_total ?? 0);
         $data['service_cash'] = ($data['service_cash'] ?? 0) + ($service_cash ?? 0);
         $data['service_cc'] = ($data['service_cc'] ?? 0) + ($service_cc ?? 0);
+        $data['service_wallet'] = ($data['service_wallet'] ?? 0) + ($service_wallet ?? 0);
 
         $data['product_total'] = ($data['product_total'] ?? 0) + ($pure_product_total ?? 0);
         $data['product_cash'] = ($data['product_cash'] ?? 0) + ($product_cash ?? 0);
@@ -226,14 +227,24 @@ function summary_sale_monthly($fromdate,$todate,$refrence_by){
         JOIN hr_invoice_payment p ON p.invoice_id=i.invoice_id 
         WHERE i.salon_id='".$salon_id."' AND i.delete_bill!=1 AND sv.service_cat NOT LIKE 'Product%' AND sv.service_cat NOT LIKE 'Membership%' AND sv.service_cat NOT LIKE 'Package%' AND p.payment_mode='cash' ".$safe_date_where);
     $service_cash = $service_cash_res['st_cash'] ? $service_cash_res['st_cash'] : 0;
-    
-    // Check for splits
-    $split_service_res = select_row("
-        SELECT SUM(p.grand_total) as st_cc 
-        FROM hr_invoice i 
-        JOIN hr_invoice_payment p ON p.invoice_id=i.invoice_id 
-        WHERE i.salon_id='".$salon_id."' AND i.delete_bill!=1 AND i.invoice_type='0' AND p.payment_mode!='cash' AND p.payment_mode!='pkg' AND p.payment_mode!='wallet' ".$date_where);
-    $service_cc = $service_total - $service_cash;
+
+    // For split invoices that contain a WALLET leg — that wallet portion should be
+    // counted as a "redemption/wallet" deduction, NOT as service revenue or Online/CC.
+    // We calculate how much of the split invoices' grand_total was paid via wallet.
+    $split_wallet_service_res = select_row("
+        SELECT SUM(p.grand_total) as swt
+        FROM hr_invoice i
+        JOIN hr_invoice_payment p ON p.invoice_id=i.invoice_id
+        WHERE i.salon_id='".$salon_id."' AND i.delete_bill!=1
+          AND i.payment_mode='split' AND p.payment_mode='wallet' ".$safe_date_where);
+    $split_wallet_in_service = $split_wallet_service_res['swt'] ? floatval($split_wallet_service_res['swt']) : 0;
+
+    // Subtract wallet-split portion from service_total (it's already tracked in wallet_total below)
+    $service_total_net = $service_total - $split_wallet_in_service;
+
+    // service_cc = total non-cash, non-wallet portion
+    $service_cc = $service_total_net - $service_cash;
+    $service_total = $service_total_net; // use adjusted total for display
     // (We simply deduct cash from the precise grand_total to ensure it always maths out)
 
     // --- Total Products (Invoice Type 2 or filtering by Product%) ---
@@ -319,6 +330,7 @@ function summary_sale_monthly($fromdate,$todate,$refrence_by){
     $data['pure_service_total'] = $service_total;
     $data['service_cash'] = $service_cash;
     $data['service_cc'] = $service_cc;
+    $data['service_wallet'] = $split_wallet_in_service; // wallet portion of split invoices
     $data['discount_total'] = $discount_total;
     $data['redemption_total'] = $redemption_total;
     $data['wallet_total'] = $wallet_total;

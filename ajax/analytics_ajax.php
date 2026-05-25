@@ -83,12 +83,38 @@ function churn_list(): array {
 
     $count = (int)(select_row("SELECT COUNT(*) as n FROM (SELECT i.cust_id $base) sub")['n']??0);
 
+    // Handle Ordering
+    $order_by = "days_silent DESC"; // Default
+    if (isset($_REQUEST['order']) && isset($_REQUEST['order'][0])) {
+        $col_idx = (int)$_REQUEST['order'][0]['column'];
+        $dir = $_REQUEST['order'][0]['dir'] === 'asc' ? 'ASC' : 'DESC';
+        
+        switch ($col_idx) {
+            case 1: $order_by = "c.cust_mobile " . $dir; break;
+            case 2: $order_by = "last_visit " . $dir; break;
+            case 3: $order_by = "days_silent " . $dir; break;
+            case 4: $order_by = "total_spent " . $dir; break;
+            default: $order_by = "days_silent DESC"; break;
+        }
+    }
+
+    // Get loyalty settings
+    $loyalty_on = false;
+    $profile_points = 0;
+    $ls_row = select_row("SELECT loyalty_enabled, profile_complete_points FROM hr_loyalty_settings WHERE salon_id='$salon_id'");
+    if ($ls_row && (int)$ls_row['loyalty_enabled'] === 1) {
+        $loyalty_on = true;
+        $profile_points = (float)($ls_row['profile_complete_points'] ?? 0);
+    }
+
     $rows = select_array("SELECT c.cust_name, c.cust_mobile, i.cust_id,
+        c.cust_dob, c.cust_anniversary, c.cust_gender, c.loyalty_profile_bonus_given,
+        MAX(i.invoice_id) as last_invoice_id,
         MAX(i.invoice_date) as last_visit,
         SUM(i.grand_total) as total_spent,
         DATEDIFF(NOW(), MAX(i.invoice_date)) as days_silent
         $base
-        ORDER BY days_silent DESC
+        ORDER BY $order_by
         LIMIT $start, $length");
 
     $data = [];
@@ -97,7 +123,30 @@ function churn_list(): array {
         $col = $d > 180 ? '#dc2626' : ($d > 90 ? '#d97706' : '#f59e0b');
         $wa_phone = preg_replace('/\D/','',$r['cust_mobile']);
         if (strlen($wa_phone)===10) $wa_phone = '91'.$wa_phone;
-        $wa_text = 'Hello '.$r['cust_name'].'! 💆 We miss you at our salon. It\'s been '.$d.' days since your last visit – come back and enjoy some self-care! 😊';
+
+        // Check if customer profile is complete
+        $is_profile_complete = true;
+        if (empty($r['cust_dob']) || $r['cust_dob'] === '0000-00-00' || $r['cust_dob'] === '1970-01-01' ||
+            empty($r['cust_anniversary']) || $r['cust_anniversary'] === '0000-00-00' || $r['cust_anniversary'] === '1970-01-01' ||
+            empty($r['cust_gender'])) {
+            $is_profile_complete = false;
+        }
+        $already_awarded = (int)($r['loyalty_profile_bonus_given'] ?? 0) === 1;
+
+        $wa_text = "Dear " . trim($r['cust_name']) . ",\n\n"
+                 . "We hope you are doing well! 🌸\n\n"
+                 . "It has been *" . $d . " days* since we last had the pleasure of welcoming you to our salon. We miss pampering you and would love to welcome you back for a premium self-care session. 💆\n\n";
+
+        if (!$is_profile_complete && $loyalty_on && $profile_points > 0 && !$already_awarded) {
+            $complete_profile_url = DOMAIN_SOFTWARE . "complete_profile.php?inv=" . $r['last_invoice_id'];
+            $wa_text .= "🎁 *Loyalty Bonus Offer*:\n"
+                      . "Update your profile details to claim *" . number_format($profile_points, 0) . " bonus loyalty points* instantly!\n"
+                      . "🔗 Update here: " . $complete_profile_url . "\n\n";
+        }
+
+        $wa_text .= "To reserve your slot, simply reply to this message or book your next session online.\n\n"
+                  . "We look forward to welcoming you back soon! ✨";
+
         $wa_url = 'https://wa.me/'.$wa_phone.'?text='.rawurlencode($wa_text);
         $data[] = [
             'customer_info' => '<div style="font-weight:700;">'.htmlspecialchars($r['cust_name']).'</div>',

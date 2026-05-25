@@ -40,6 +40,7 @@
         <div style="font-size: 12px; margin-top: 8px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;">
             <span>Cash: <b id="sum_service_cash">₹0</b></span>
             <span>Online/CC: <b id="sum_service_cc">₹0</b></span>
+            <span id="sum_service_wallet_row" style="display:none;">Wallet (Split): <b id="sum_service_wallet" style="color:#7c3aed;">₹0</b></span>
         </div>
     </div>
 
@@ -440,6 +441,13 @@ $(document).ready(function () {
                     $('#sum_service_total').text('₹' + Number(obj.service_total || 0).toFixed(2));
                     $('#sum_service_cash').text('₹' + Number(obj.service_cash || 0).toFixed(2));
                     $('#sum_service_cc').text('₹' + Number(obj.service_cc || 0).toFixed(2));
+                    var svcWallet = Number(obj.service_wallet || 0);
+                    if (svcWallet > 0) {
+                        $('#sum_service_wallet').text('₹' + svcWallet.toFixed(2));
+                        $('#sum_service_wallet_row').show();
+                    } else {
+                        $('#sum_service_wallet_row').hide();
+                    }
                     
                     $('#sum_product_total').text('₹' + Number(obj.product_total || 0).toFixed(2));
                     $('#sum_product_cash').text('₹' + Number(obj.product_cash || 0).toFixed(2));

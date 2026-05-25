@@ -212,6 +212,7 @@ function initChurnTable(){
         processing:true, serverSide:true, responsive:true, pageLength:15,
         ajax:{ url:'ajax/analytics_ajax.php', type:'POST',
             data:function(d){ d.method='churn_list'; d.days=churnDays; d.from=getFrom(); d.to=getTo(); }},
+        order:[[3,'desc']],
         columns:[
             {data:'customer_info', orderable:false},
             {data:'mobile'},

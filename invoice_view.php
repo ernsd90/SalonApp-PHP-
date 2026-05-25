@@ -8,10 +8,32 @@ $salon_id = get_session_data('salon_id');
 $salon = select_row("SELECT salon_name,salon_address,salon_contact,salon_gst,firm_name FROM `hr_salon` WHERE `salon_id` = $salon_id");
 if($salon) extract($salon);
 
-$invoice = select_row("SELECT * FROM `hr_invoice` WHERE `invoice_id` = '".mysqli_real_escape_string($conn, $invoice_id)."'");
+$invoice = select_row("SELECT * FROM `hr_invoice` WHERE `invoice_id` = '".$invoice_id."'");
 if($invoice) extract($invoice);
 
 $invoice_service = select_array("SELECT * FROM `hr_invoice_service` WHERE `invoice_id` = '".$invoice_id."'");
+
+// For split payments: fetch each payment leg
+$split_payments = [];
+if(isset($payment_mode) && strtolower($payment_mode) === 'split') {
+    $split_rows = select_array("SELECT payment_mode, grand_total FROM `hr_invoice_payment` WHERE `invoice_id` = '".$invoice_id."' ORDER BY id ASC");
+    if($split_rows) {
+        // Build friendly method names from hr_payment_methods
+        $method_map = [];
+        $methods = select_array("SELECT method_key, method_name FROM hr_payment_methods WHERE (salon_id='$salon_id' OR is_global=1) AND status=1");
+        if($methods) foreach($methods as $m) $method_map[$m['method_key']] = $m['method_name'];
+        $method_map['wallet'] = 'Wallet';
+        $method_map['cash']   = 'Cash';
+        foreach($split_rows as $sp) {
+            $mk = strtolower($sp['payment_mode']);
+            $split_payments[] = [
+                'label'  => isset($method_map[$mk]) ? $method_map[$mk] : ucfirst($mk),
+                'amount' => floatval($sp['grand_total']),
+                'mode'   => $mk,
+            ];
+        }
+    }
+}
 ?>
 
 <div style="padding: 30px;">
@@ -42,10 +64,31 @@ $invoice_service = select_array("SELECT * FROM `hr_invoice_service` WHERE `invoi
         <?php if(!empty($payment_mode)): ?>
         <div style="text-align: right;">
             <p style="color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">Payment Method</p>
-            <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-end; color: var(--text-main); font-weight: 500;">
-                <i class="ph-fill ph-check-circle" style="color: var(--success); font-size: 20px;"></i>
-                <?= strtoupper(htmlspecialchars($payment_mode)) ?>
-            </div>
+            <?php if(strtolower($payment_mode) === 'split' && !empty($split_payments)): ?>
+                <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
+                    <?php foreach($split_payments as $sp): ?>
+                    <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-end;">
+                        <?php
+                        // Color-code by mode
+                        $sp_color = '#059669'; // green default
+                        if($sp['mode'] === 'wallet') $sp_color = '#7c3aed';
+                        elseif(in_array($sp['mode'], ['cash'])) $sp_color = '#059669';
+                        else $sp_color = 'var(--primary)';
+                        ?>
+                        <i class="ph-fill ph-check-circle" style="color: <?= $sp_color ?>; font-size: 18px;"></i>
+                        <span style="font-weight: 600; color: var(--text-main); font-size: 14px;">
+                            <?= htmlspecialchars($sp['label']) ?>:
+                            <span style="color: <?= $sp_color ?>;">₹<?= number_format($sp['amount'], 2) ?></span>
+                        </span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div style="display: flex; align-items: center; gap: 8px; justify-content: flex-end; color: var(--text-main); font-weight: 500;">
+                    <i class="ph-fill ph-check-circle" style="color: var(--success); font-size: 20px;"></i>
+                    <?= strtoupper(htmlspecialchars($payment_mode)) ?>
+                </div>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
     </div>

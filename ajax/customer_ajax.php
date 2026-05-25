@@ -229,6 +229,12 @@ function get_customer(){
             $wa_btn = '<a href="https://wa.me/91'.$cust_mobile.'?text='.$wa_msg.'" target="_blank" class="btn" style="background:#25D366;color:white;border:none;padding:6px 10px;border-radius:6px;font-size:13px;cursor:pointer;text-decoration:none;" title="WhatsApp"><i class="ph-fill ph-whatsapp-logo"></i></a>';
 
             $userdata[$i] = $users;
+            
+            // Fetch and set loyalty points balance
+            require_once dirname(__DIR__).'/loyalty_functions.php';
+            $loyalty_bal = get_customer_points_balance((int)$cust_id);
+            $userdata[$i]['loyalty_points'] = number_format($loyalty_bal, 0) . ' pts';
+
             $userdata[$i]['action'] = $wa_btn . ' ' . $edit_btn . ' ' . $view_btn;
            
     

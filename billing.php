@@ -200,26 +200,33 @@ $staff = select_array($query);
                 <!-- Split Payment Panel -->
                 <div id="split_pay_panel" style="display:none;padding:14px;background:#f8fafc;border-radius:12px;border:1px solid #cbd5e1;margin-bottom:14px;">
                     <div style="font-size:12px;font-weight:700;color:#334155;text-transform:uppercase;margin-bottom:10px;"><i class="ph ph-arrows-split"></i> Split Payment Details</div>
+                    <div id="split_wallet_banner" style="display:none;margin-bottom:10px;padding:9px 13px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;font-size:12px;color:#065f46;">
+                        <i class="ph-fill ph-wallet" style="color:#059669;"></i>
+                        Wallet balance: <strong id="split_wallet_avail">₹0.00</strong> will be applied. Remaining amount via Mode 2.
+                    </div>
                     <div style="display: flex; gap: 12px; margin-bottom: 8px;">
                         <div style="flex:1">
-                            <label style="font-size:11px;color:#475569">Cash Amount</label>
+                            <label style="font-size:11px;color:#475569">Amount 1</label>
                             <input type="number" class="form-control calcEvent" id="split_amount_1" name="part_cash" step="any" min="0" placeholder="0.00" style="background:white; border-color:#cbd5e1;">
                         </div>
                         <div style="flex:1">
                             <label style="font-size:11px;color:#475569">Mode 1</label>
-                            <select name="part_cash_mode" class="form-control" style="background:white; border-color:#cbd5e1; pointer-events: none;">
-                                <option value="cash">Cash</option>
+                            <select name="part_cash_mode" id="split_mode_1" class="form-control" style="background:white; border-color:#cbd5e1;">
+                                <?php foreach($pay_methods as $pm): if(in_array($pm['method_key'], ['pkg','package'])) continue; ?>
+                                <option value="<?= htmlspecialchars($pm['method_key']) ?>"><?= htmlspecialchars($pm['method_name']) ?></option>
+                                <?php endforeach; ?>
+                                <option value="wallet">💳 Wallet Balance</option>
                             </select>
                         </div>
                     </div>
                     <div style="display: flex; gap: 12px;">
                         <div style="flex:1">
-                            <label style="font-size:11px;color:#475569">Other Amount</label>
+                            <label style="font-size:11px;color:#475569">Amount 2</label>
                             <input type="number" class="form-control" id="split_amount_2" name="part_cc" readonly placeholder="0.00" style="background:#f1f5f9; border-color:#e2e8f0; color:#475569">
                         </div>
                         <div style="flex:1">
                             <label style="font-size:11px;color:#475569">Mode 2</label>
-                            <select name="part_cc_mode" class="form-control" style="background:white; border-color:#cbd5e1;">
+                            <select name="part_cc_mode" id="split_mode_2" class="form-control" style="background:white; border-color:#cbd5e1;">
                                 <?php foreach($pay_methods as $pm): if(in_array($pm['method_key'], ['wallet','pkg','package','cash'])) continue; ?>
                                 <option value="<?= htmlspecialchars($pm['method_key']) ?>"><?= htmlspecialchars($pm['method_name']) ?></option>
                                 <?php endforeach; ?>
@@ -227,7 +234,10 @@ $staff = select_array($query);
                         </div>
                     </div>
                     <div id="split_low_warn" style="display:none;margin-top:8px;padding:8px 12px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e;border:1px solid #fcd34d;">
-                        <i class="ph ph-warning"></i> Cash amount exceeds Grand Total!
+                        <i class="ph ph-warning"></i> Amount 1 exceeds Grand Total!
+                    </div>
+                    <div id="split_wallet_low_warn" style="display:none;margin-top:8px;padding:8px 12px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e;border:1px solid #fcd34d;">
+                        <i class="ph ph-warning"></i> Wallet balance is insufficient to cover Amount 1. Please adjust.
                     </div>
                 </div>
 
@@ -438,6 +448,15 @@ function addBillingRow(prefillData = null) {
     });
     tdService.append(selectService);
     tdService.append('<input type="hidden" name="service_catid[]" class="row-catid" />');
+    // Variation picker — hidden until a service with variations is selected
+    tdService.append(
+        '<div class="row-variation-wrap" style="display:none; margin-top:6px;">'+
+            '<select name="service_var[]" class="form-control row-var-select" style="font-size:12px; height:36px; padding:4px 10px; background:#f0fdf4; border-color:#86efac; color:#15803d;">'+
+                '<option value="">— Select Variation —</option>'+
+            '</select>'+
+        '</div>'
+    );
+    tdService.append('<input type="hidden" name="service_var_id[]" class="row-var-id" value="">');
 
     // Staff Select (Multiple)
     var tdStaff = $('<td></td>');
@@ -582,7 +601,21 @@ function calculateGrandTotal() {
 
     // Auto-calculate split amounts if open
     if ($('.payment_mode').val() === 'split') {
+        var mode1 = $('#split_mode_1').val();
         var part1 = parseFloat($('#split_amount_1').val()) || 0;
+
+        // If wallet is Mode 1, cap part1 to wallet balance
+        if (mode1 === 'wallet') {
+            var walletBal = parseFloat($('#wallet_avail_balance').text().replace('₹','').replace(/,/g,'')) || 0;
+            if (part1 > walletBal) {
+                part1 = walletBal;
+                $('#split_amount_1').val(walletBal.toFixed(2));
+            }
+            $('#split_wallet_low_warn').toggle(parseFloat($('#split_amount_1').val()) > walletBal);
+        } else {
+            $('#split_wallet_low_warn').hide();
+        }
+
         var part2 = grandTotal - part1;
         $('#split_amount_2').val(part2 >= 0 ? part2.toFixed(2) : '0.00');
         $('#split_low_warn').toggle(part1 > grandTotal || part1 < 0);
@@ -626,6 +659,12 @@ $(document).ready(function() {
         var tr = $(this).closest('tr');
         var catid = $(this).find(':selected').attr('data-catid');
         tr.find('.row-catid').val(catid);
+
+        // Clear any previous variation state
+        tr.find('.row-variation-wrap').hide();
+        tr.find('.row-var-select').html('<option value="">— Select Variation —</option>');
+        tr.find('.row-var-id').val('');
+        tr.find('.row-price').prop('readonly', false).css('opacity', 1);
         
         var serviceId = $(this).val();
         if(serviceId != "0") {
@@ -634,22 +673,71 @@ $(document).ready(function() {
                 tr.find('.row-gst').val(isProduct ? 0 : taxValue);
                 tr.find('.row-gst').siblings('span').text(isProduct ? '0%' : (taxValue + '%'));
             }
-            // Mock price fetch from ajax, simulating existing logic
+
+            // Only fetch variations for real services (not products)
+            var isProduct2 = String(serviceId).startsWith('p_');
+            var numericId  = String(serviceId).replace(/^[sp]_/, '');
+
+            // Step 1: Get base price
             $.ajax({
-                type: "POST",
-                url: "ajax/salon_ajax.php",
-                data: { "method": "service_price", 'service_id': serviceId },
-                success:function(res){
-                    // Some servers return dirty strings, forcibly parse to float
-                    var priceStr = String(res).replace(/[^0-9.]/g, ''); 
+                type: "POST", url: "ajax/salon_ajax.php",
+                data: { method: 'service_price', service_id: serviceId },
+                success: function(res) {
+                    var priceStr = String(res).replace(/[^0-9.]/g, '');
                     var price = parseFloat(priceStr) || 0;
                     tr.find('.row-price').val(price);
                     tr.find('.row-price-org').val(price);
                     calculateGrandTotal();
                 }
             });
+
+            // Step 2: Check for variations (services only)
+            if(!isProduct2) {
+                $.ajax({
+                    type: "POST", url: "ajax/salon_ajax.php",
+                    data: { method: 'get_service_variations', service_id: numericId },
+                    success: function(res) {
+                        try {
+                            var vars = JSON.parse(res);
+                            if(vars && vars.length > 0) {
+                                // Populate the variation picker
+                                var opts = '<option value="">— Select Variation —</option>';
+                                vars.forEach(function(v) {
+                                    opts += '<option value="'+v.var_id+'" data-price="'+v.var_price+'">'+v.var_name+' (\u20b9'+parseFloat(v.var_price).toFixed(0)+')</option>';
+                                });
+                                tr.find('.row-var-select').html(opts);
+                                tr.find('.row-variation-wrap').show();
+                                // Lock price until variation is chosen
+                                tr.find('.row-price').val('').prop('readonly', true).css('opacity', 0.5);
+                                tr.find('.row-price-org').val('');
+                                calculateGrandTotal();
+                            }
+                        } catch(e) {}
+                    }
+                });
+            }
         }
     });
+
+    // When a variation is picked, update price
+    $(document).on('change', '.row-var-select', function() {
+        var tr = $(this).closest('tr');
+        var selected = $(this).find(':selected');
+        var varId = $(this).val();
+        if(varId) {
+            var price = parseFloat(selected.data('price')) || 0;
+            tr.find('.row-var-id').val(varId);
+            tr.find('.row-price').val(price).prop('readonly', false).css('opacity', 1);
+            tr.find('.row-price-org').val(price);
+            calculateGrandTotal();
+        } else {
+            tr.find('.row-var-id').val('');
+            tr.find('.row-price').val('').prop('readonly', true).css('opacity', 0.5);
+            tr.find('.row-price-org').val('');
+            calculateGrandTotal();
+        }
+    });
+
 
     // Customer Autocomplete Search
     var searchTimer;
@@ -721,12 +809,45 @@ $(document).ready(function() {
         }
 
         // Check if rows have assigned staff and valid service
-        $('#billing_tbody tr').each(function() {
+        $('#billing_tbody tr').each(function(index) {
+            var rowNum = index + 1;
+
             var service = $(this).find('.select2-service').val();
-            if(service == "0" || service == "") {
-                 alert('Please select a valid service/product on all rows.');
+            if(!service || service == "0" || service == "") {
+                 alert('Row ' + rowNum + ': Please select a valid service/product.');
                  isValid = false;
                  return false;
+            }
+
+            var staff = $(this).find('.select2-staff').val();
+            if(!staff || staff.length === 0) {
+                 alert('Row ' + rowNum + ': Please assign at least one staff member.');
+                 isValid = false;
+                 return false;
+            }
+
+            var varWrap = $(this).find('.row-variation-wrap');
+            if(varWrap.is(':visible')) {
+                var variation = $(this).find('.row-var-select').val();
+                if(!variation || variation === "") {
+                    alert('Row ' + rowNum + ': Please select a variation for the service.');
+                    isValid = false;
+                    return false;
+                }
+            }
+
+            var qty = parseFloat($(this).find('.row-qty').val());
+            if(isNaN(qty) || qty <= 0) {
+                alert('Row ' + rowNum + ': Please enter a valid quantity greater than 0.');
+                isValid = false;
+                return false;
+            }
+
+            var price = $(this).find('.row-price').val();
+            if(price === "" || isNaN(parseFloat(price)) || parseFloat(price) < 0) {
+                alert('Row ' + rowNum + ': Please enter a valid price.');
+                isValid = false;
+                return false;
             }
         });
 
@@ -922,7 +1043,10 @@ $(document).ready(function() {
         $('#pkg_pay_panel').toggle(mode === 'pkg');
         // Split panel
         $('#split_pay_panel').toggle(mode === 'split');
-        if (mode === 'split') calculateGrandTotal();
+        if (mode === 'split') {
+            refreshSplitMode2Options();
+            calculateGrandTotal();
+        }
         // If package selected and no customer loaded, show hint
         if(mode === 'pkg') {
             var custId = $('.cust_id').val();
@@ -961,6 +1085,60 @@ $(document).ready(function() {
         // Unconditionally recalculate total on payment mode change
         calculateGrandTotal();
     });
+
+    // When Mode 1 changes in split panel — handle wallet auto-fill and re-sync Mode 2
+    $(document).on('change', '#split_mode_1', function() {
+        var mode1 = $(this).val();
+        var grandTotal = parseFloat($('.grandTotal').val()) || 0;
+
+        if (mode1 === 'wallet') {
+            var walletBal = parseFloat($('#wallet_avail_balance').text().replace('₹','').replace(/,/g,'')) || 0;
+            if (walletBal <= 0) {
+                alert('No wallet balance available for this customer.');
+                $(this).val('cash');  // reset to first available
+                return;
+            }
+            // Auto-fill wallet amount (capped to grand total)
+            var applyWallet = Math.min(walletBal, grandTotal);
+            $('#split_amount_1').val(applyWallet.toFixed(2));
+            $('#split_wallet_banner').show();
+            $('#split_wallet_avail').text('₹' + walletBal.toFixed(2));
+            // Make Amount 1 readonly since wallet auto-fills
+            $('#split_amount_1').prop('readonly', true).css({'background':'#f1f5f9','color':'#475569'});
+        } else {
+            $('#split_wallet_banner').hide();
+            $('#split_wallet_low_warn').hide();
+            // Make Amount 1 editable again
+            $('#split_amount_1').prop('readonly', false).css({'background':'white','color':''});
+        }
+
+        // Refresh Mode 2 to exclude selected Mode 1
+        refreshSplitMode2Options();
+        calculateGrandTotal();
+    });
+
+    // Rebuild Mode 2 options excluding whatever Mode 1 currently has
+    function refreshSplitMode2Options() {
+        var mode1 = $('#split_mode_1').val();
+        var currentMode2 = $('#split_mode_2').val();
+        var allMethods = <?php
+            $split_methods = [];
+            foreach($pay_methods as $pm) {
+                if(in_array($pm['method_key'], ['pkg','package'])) continue;
+                $split_methods[] = $pm;
+            }
+            $split_methods[] = ['method_key'=>'wallet','method_name'=>'💳 Wallet Balance'];
+            echo json_encode($split_methods);
+        ?>;
+
+        var html = '';
+        allMethods.forEach(function(m) {
+            // Exclude whatever Mode 1 has, and exclude pkg/package
+            if (m.method_key === mode1) return;
+            html += '<option value="' + m.method_key + '"' + (m.method_key === currentMode2 ? ' selected' : '') + '>' + m.method_name + '</option>';
+        });
+        $('#split_mode_2').html(html);
+    }
 
     // Apply full wallet balance to bill
     $('#btn_use_full_wallet').click(function() {

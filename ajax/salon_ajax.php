@@ -41,6 +41,20 @@ try {
 } catch(Exception $e) {
     // Column already exists, ignore
 }
+try {
+    $conn->query("CREATE TABLE IF NOT EXISTS `hr_service_variations` (
+        `var_id`       INT AUTO_INCREMENT PRIMARY KEY,
+        `service_id`   INT NOT NULL,
+        `salon_id`     INT NOT NULL,
+        `var_name`     VARCHAR(100) NOT NULL,
+        `var_price`    DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        `sort_order`   INT NOT NULL DEFAULT 0,
+        INDEX `idx_svc_var_svcid` (`service_id`),
+        INDEX `idx_svc_var_salid` (`salon_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+} catch(Exception $e) {
+    // Table already exists, ignore
+}
 
 /*---- Salons (Outlets) --------*/
 
@@ -110,6 +124,11 @@ function toggle_salon_status(){
 
 function service_price(){
     extract($_REQUEST);
+    // If var_id is passed, return the variation's price directly
+    if (!empty($var_id) && is_numeric($var_id)) {
+        $var = select_row("SELECT var_price FROM `hr_service_variations` WHERE `var_id`='".intval($var_id)."'");
+        return $var['var_price'] ?? 0;
+    }
     if (strpos($service_id, 'p_') === 0) {
         $id = str_replace('p_', '', $service_id);
         $sql = "SELECT product_price as service_price FROM `hr_product` WHERE product_id='".$id."'";
@@ -453,10 +472,21 @@ function get_service(){
 
             $sql = "SELECT service_catName FROM `hr_servicesCategory` where service_catid = '".$service_catid."'";
 			$service_cat = select_row($sql); 
+            $cat_name = ($service_cat && isset($service_cat['service_catName'])) ? $service_cat['service_catName'] : 'Uncategorized';
+
+            // Get variation count for badge
+            $var_count_row = select_row("SELECT COUNT(*) as cnt FROM hr_service_variations WHERE service_id='$service_id' AND salon_id='$salon_id'");
+            $var_count = intval($var_count_row['cnt'] ?? 0);
+            $var_badge = $var_count > 0 ? ' <span style="background:#e0e7ff;color:#4f46e5;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;vertical-align:middle;">'.$var_count.' var</span>' : '';
+
+            // Variations button
+            $safe_name = htmlspecialchars(addslashes($service_name ?? ''), ENT_QUOTES, 'UTF-8');
+            $var_btn = '<button type="button" onclick="openVariationsModal('.$service_id.', \''.$safe_name.'\')" style="background:#f0fdf4;color:#16a34a;border:none;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;" title="Manage Variations"><i class="ph ph-tag"></i> Vars</button>';
 
             $userdata[$i] = $users;
-            $userdata[$i]['service_catName'] = $service_cat['service_catName'];
-            $userdata[$i]['action'] = '<div style="display:flex; gap:8px;">' . $edit_btn . $toggle_btn . '</div>';
+            $userdata[$i]['service_catName'] = $cat_name;
+            $userdata[$i]['service_name_display'] = htmlspecialchars($service_name ?? '', ENT_QUOTES, 'UTF-8') . $var_badge;
+            $userdata[$i]['action'] = '<div style="display:flex; gap:6px; flex-wrap:wrap; min-width:180px;">' . $edit_btn . $var_btn . $toggle_btn . '</div>';
            
     
             $i++;
@@ -478,6 +508,46 @@ function toggle_service_status(){
     update_query($sql);
     $msg = $status == 1 ? "Service Activated" : "Service Deactivated";
     return array("msg" => $msg, "error" => $error);
+}
+
+/* ---- Service Variations ---- */
+
+function get_service_variations(){
+    global $salon_id;
+    $service_id = intval($_REQUEST['service_id'] ?? 0);
+    if(!$service_id) return [];
+    $vars = select_array("SELECT var_id, var_name, var_price FROM `hr_service_variations` WHERE service_id='$service_id' AND salon_id='$salon_id' ORDER BY sort_order ASC, var_id ASC");
+    return $vars ?: [];
+}
+
+function save_service_variation(){
+    global $salon_id;
+    $error = 0;
+    $var_id     = intval($_POST['var_id'] ?? 0);
+    $service_id = intval($_POST['service_id'] ?? 0);
+    $var_name   = ucwords(strtolower(trim(mysqli_real_escape_string($GLOBALS['conn'], $_POST['var_name'] ?? ''))));
+    $var_price  = floatval($_POST['var_price'] ?? 0);
+    $sort_order = intval($_POST['sort_order'] ?? 0);
+
+    if(!$var_name || !$service_id){
+        return ['error' => 1, 'msg' => 'Variation name and service ID are required.'];
+    }
+    if($var_id > 0){
+        update_query("UPDATE `hr_service_variations` SET var_name='$var_name', var_price='$var_price', sort_order='$sort_order' WHERE var_id='$var_id' AND salon_id='$salon_id'");
+        $msg = 'Variation updated successfully.';
+    } else {
+        insert_query("INSERT INTO `hr_service_variations` SET service_id='$service_id', salon_id='$salon_id', var_name='$var_name', var_price='$var_price', sort_order='$sort_order'");
+        $msg = 'Variation added successfully.';
+    }
+    return ['error' => $error, 'msg' => $msg];
+}
+
+function delete_service_variation(){
+    global $salon_id;
+    $var_id = intval($_POST['var_id'] ?? 0);
+    if(!$var_id) return ['error' => 1, 'msg' => 'Invalid variation ID.'];
+    update_query("DELETE FROM `hr_service_variations` WHERE var_id='$var_id' AND salon_id='$salon_id'");
+    return ['error' => 0, 'msg' => 'Variation deleted.'];
 }
 
 	

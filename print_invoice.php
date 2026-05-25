@@ -51,12 +51,76 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
         $feedback_url = DOMAIN_SOFTWARE . "feedback.php?inv=" . $invoice_id;
         $s_name = $salon['salon_name'] ?? 'Our Salon';
         
-        $wa_msg = "Dear " . trim($invoice_data['cust_name']) . ",\n\n"
-                . "Thank you for visiting *" . $s_name . "*! We loved having you.\n\n"
-                . "Your bill for ₹" . number_format($invoice_data['grand_total'] ?? 0, 2) . " has been generated.\n"
-                . "🧾 View Receipt: " . $invoice_url . "\n\n"
-                . "⭐ We'd love your feedback! Please rate your experience here:\n" . $feedback_url . "\n\n"
-                . "Warm regards,\nThe " . $s_name . " Team";
+        // ── Loyalty & Profile details fallback calculation ────────────────
+        $pts_earned = 0;
+        $pts_row = select_row("SELECT points FROM hr_customer_points WHERE invoice_id='$invoice_id' AND type='earn' AND remark LIKE 'Cashback%'");
+        if ($pts_row) {
+            $pts_earned = (float)$pts_row['points'];
+        }
+        
+        $loyalty_on = true;
+        $ls_row = select_row("SELECT loyalty_enabled, profile_complete_points FROM hr_loyalty_settings WHERE salon_id='$salon_id'");
+        if ($ls_row && (int)$ls_row['loyalty_enabled'] === 0) $loyalty_on = false;
+        
+        $cdata = select_row("SELECT loyalty_blocked FROM hr_customer WHERE cust_id='".$invoice_data['cust_id']."'");
+        if ($cdata && $cdata['loyalty_blocked'] == '1') $loyalty_on = false;
+        
+        $total_points = 0;
+        $is_profile_complete = true;
+        $profile_points = 0;
+        if ($loyalty_on && !empty($invoice_data['cust_id'])) {
+            require_once __DIR__.'/loyalty_functions.php';
+            $total_points = get_customer_points_balance((int)$invoice_data['cust_id']);
+            $cust_profile = select_row("SELECT cust_dob, cust_anniversary, cust_gender FROM hr_customer WHERE cust_id = '".$invoice_data['cust_id']."'");
+            if ($cust_profile) {
+                if (empty($cust_profile['cust_dob']) || $cust_profile['cust_dob'] == '0000-00-00' || $cust_profile['cust_dob'] == '1970-01-01') {
+                    $is_profile_complete = false;
+                }
+                if (empty($cust_profile['cust_anniversary']) || $cust_profile['cust_anniversary'] == '0000-00-00' || $cust_profile['cust_anniversary'] == '1970-01-01') {
+                    $is_profile_complete = false;
+                }
+                if (empty($cust_profile['cust_gender']) || trim($cust_profile['cust_gender']) == '') {
+                    $is_profile_complete = false;
+                }
+            } else {
+                $is_profile_complete = false;
+            }
+            if ($ls_row) {
+                $profile_points = (float)($ls_row['profile_complete_points'] ?? 0);
+            }
+        }
+        
+        $c_first = ucfirst(strtolower(explode(' ', trim($invoice_data['cust_name'] ?? ''))[0]));
+        $pm_mode = $invoice_data['payment_mode'] ?? 'cash';
+        
+        $wa_msg = "Dear {$c_first},\n\n";
+        $wa_msg .= "Thank you for visiting *{$s_name}*! We loved having you.\n\n";
+        if ($pm_mode == 'pkg') {
+            $wallet_data = select_row("SELECT cust_wallet FROM `hr_customer` where `salon_id`='".$salon_id."' and cust_id='".$invoice_data['cust_id']."' ORDER BY `cust_wallet` DESC");
+            $balance = $wallet_data ? (float)$wallet_data['cust_wallet'] : 0;
+            
+            $wa_msg .= "Your visit has been recorded.\n";
+            $wa_msg .= "Amount  : *Rs." . number_format($invoice_data['grand_total'] ?? 0, 2) . "*\n";
+            $wa_msg .= "Mode    : Package / Wallet\n";
+            $wa_msg .= "Balance : *Rs." . number_format($balance, 2) . "* remaining\n\n";
+        } else {
+            $wa_msg .= "Your bill for *Rs." . number_format($invoice_data['grand_total'] ?? 0, 2) . "* has been generated.\n";
+            $wa_msg .= "Mode   : " . ucfirst(strtolower($pm_mode)) . "\n\n";
+        }
+        $wa_msg .= "🧾 View Receipt: {$invoice_url}\n\n";
+        
+        if ($loyalty_on) {
+            $wa_msg .= "💎 Loyalty Points:\n";
+            $wa_msg .= "• Earned this visit: " . number_format($pts_earned, 0) . " pts\n";
+            $wa_msg .= "• Total Balance: " . number_format($total_points, 0) . " pts\n\n";
+            
+            if (!$is_profile_complete && $profile_points > 0) {
+                $complete_profile_url = DOMAIN_SOFTWARE . "complete_profile.php?inv=" . $invoice_id;
+                $wa_msg .= "🎁 Complete your profile to get " . number_format($profile_points, 0) . " bonus points!\n🔗 Fill details here: {$complete_profile_url}\n\n";
+            }
+        }
+        
+        $wa_msg .= "⭐ We'd love your feedback! Please rate your experience here:\n{$feedback_url}";
     }
     
     $clean_phone = preg_replace('/\D/', '', $wa_phone);
@@ -379,12 +443,76 @@ if (empty($wa_msg) && !empty($invoice_data)) {
     $feedback_url = DOMAIN_SOFTWARE . "feedback.php?inv=" . $invoice_id;
     $s_name = $salon['salon_name'] ?? 'Our Salon';
     
-    $wa_msg = "Dear " . trim($invoice_data['cust_name']) . ",\n\n"
-            . "Thank you for visiting *" . $s_name . "*! We loved having you.\n\n"
-            . "Your bill for ₹" . number_format($invoice_data['grand_total'] ?? 0, 2) . " has been generated.\n"
-            . "🧾 View Receipt: " . $invoice_url . "\n\n"
-            . "⭐ We'd love your feedback! Please rate your experience here:\n" . $feedback_url . "\n\n"
-            . "Warm regards,\nThe " . $s_name . " Team";
+    // ── Loyalty & Profile details fallback calculation ────────────────
+    $pts_earned = 0;
+    $pts_row = select_row("SELECT points FROM hr_customer_points WHERE invoice_id='$invoice_id' AND type='earn' AND remark LIKE 'Cashback%'");
+    if ($pts_row) {
+        $pts_earned = (float)$pts_row['points'];
+    }
+    
+    $loyalty_on = true;
+    $ls_row = select_row("SELECT loyalty_enabled, profile_complete_points FROM hr_loyalty_settings WHERE salon_id='$salon_id'");
+    if ($ls_row && (int)$ls_row['loyalty_enabled'] === 0) $loyalty_on = false;
+    
+    $cdata = select_row("SELECT loyalty_blocked FROM hr_customer WHERE cust_id='".$invoice_data['cust_id']."'");
+    if ($cdata && $cdata['loyalty_blocked'] == '1') $loyalty_on = false;
+    
+    $total_points = 0;
+    $is_profile_complete = true;
+    $profile_points = 0;
+    if ($loyalty_on && !empty($invoice_data['cust_id'])) {
+        require_once __DIR__.'/loyalty_functions.php';
+        $total_points = get_customer_points_balance((int)$invoice_data['cust_id']);
+        $cust_profile = select_row("SELECT cust_dob, cust_anniversary, cust_gender FROM hr_customer WHERE cust_id = '".$invoice_data['cust_id']."'");
+        if ($cust_profile) {
+            if (empty($cust_profile['cust_dob']) || $cust_profile['cust_dob'] == '0000-00-00' || $cust_profile['cust_dob'] == '1970-01-01') {
+                $is_profile_complete = false;
+            }
+            if (empty($cust_profile['cust_anniversary']) || $cust_profile['cust_anniversary'] == '0000-00-00' || $cust_profile['cust_anniversary'] == '1970-01-01') {
+                $is_profile_complete = false;
+            }
+            if (empty($cust_profile['cust_gender']) || trim($cust_profile['cust_gender']) == '') {
+                $is_profile_complete = false;
+            }
+        } else {
+            $is_profile_complete = false;
+        }
+        if ($ls_row) {
+            $profile_points = (float)($ls_row['profile_complete_points'] ?? 0);
+        }
+    }
+    
+    $c_first = ucfirst(strtolower(explode(' ', trim($invoice_data['cust_name'] ?? ''))[0]));
+    $pm_mode = $invoice_data['payment_mode'] ?? 'cash';
+    
+    $wa_msg = "Dear {$c_first},\n\n";
+    $wa_msg .= "Thank you for visiting *{$s_name}*! We loved having you.\n\n";
+    if ($pm_mode == 'pkg') {
+        $wallet_data = select_row("SELECT cust_wallet FROM `hr_customer` where `salon_id`='".$salon_id."' and cust_id='".$invoice_data['cust_id']."' ORDER BY `cust_wallet` DESC");
+        $balance = $wallet_data ? (float)$wallet_data['cust_wallet'] : 0;
+        
+        $wa_msg .= "Your visit has been recorded.\n";
+        $wa_msg .= "Amount  : *Rs." . number_format($invoice_data['grand_total'] ?? 0, 2) . "*\n";
+        $wa_msg .= "Mode    : Package / Wallet\n";
+        $wa_msg .= "Balance : *Rs." . number_format($balance, 2) . "* remaining\n\n";
+    } else {
+        $wa_msg .= "Your bill for *Rs." . number_format($invoice_data['grand_total'] ?? 0, 2) . "* has been generated.\n";
+        $wa_msg .= "Mode   : " . ucfirst(strtolower($pm_mode)) . "\n\n";
+    }
+    $wa_msg .= "🧾 View Receipt: {$invoice_url}\n\n";
+    
+    if ($loyalty_on) {
+        $wa_msg .= "💎 Loyalty Points:\n";
+        $wa_msg .= "• Earned this visit: " . number_format($pts_earned, 0) . " pts\n";
+        $wa_msg .= "• Total Balance: " . number_format($total_points, 0) . " pts\n\n";
+        
+        if (!$is_profile_complete && $profile_points > 0) {
+            $complete_profile_url = DOMAIN_SOFTWARE . "complete_profile.php?inv=" . $invoice_id;
+            $wa_msg .= "🎁 Complete your profile to get " . number_format($profile_points, 0) . " bonus points!\n🔗 Fill details here: {$complete_profile_url}\n\n";
+        }
+    }
+    
+    $wa_msg .= "⭐ We'd love your feedback! Please rate your experience here:\n{$feedback_url}";
 }
 
 $clean_phone_bottom = preg_replace('/\D/', '', $wa_phone);
@@ -394,7 +522,7 @@ if (strlen($clean_phone_bottom) == 10) {
 
 $wa_link   = 'https://api.whatsapp.com/send?phone=' . $clean_phone_bottom
            . '&text=' . rawurlencode($wa_msg);
-$skip_url  = '/invoices.php';
+$skip_url  = DOMAIN_SOFTWARE . 'invoices.php';
 ?>
 
 <?php if(isset($_GET['type']) && $_GET['type'] == 'close'): ?>
