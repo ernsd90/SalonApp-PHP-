@@ -311,23 +311,36 @@ function create_package_new() {
     $gst_applicable = intval($gst_applicable ?? 0);
     $gst_percent    = floatval($gst_percent ?? 0);
     $status         = intval($status ?? 1);
-    $service_ids    = isset($service_id) ? (array)$service_id : [];
-    $quantities     = isset($qty) ? (array)$qty : [];
+    $service_ids    = isset($service_id)    ? (array)$service_id    : [];
+    $quantities     = isset($qty)           ? (array)$qty           : [];
+    $var_ids        = isset($var_id)        ? (array)$var_id        : [];
+    $var_prices     = isset($var_unit_price) ? (array)$var_unit_price : [];
 
     if (empty($package_name) || $selling_price <= 0 || empty($service_ids)) {
         return ['error' => 1, 'msg' => 'Package name, price and at least one service are required.'];
     }
 
-    // Calculate MRP from services
+    // Calculate MRP from services (variation price takes priority if supplied)
     $mrp_total = 0;
     $service_data = [];
     foreach ($service_ids as $i => $sid) {
         $sid = intval($sid);
         $qty = max(1, intval($quantities[$i] ?? 1));
+        $var_id_val = intval($var_ids[$i] ?? 0);
+        // If a variation price is sent use it, otherwise fall back to service base price
+        $unit_price = isset($var_prices[$i]) && floatval($var_prices[$i]) > 0
+            ? floatval($var_prices[$i]) : 0;
         $svc = select_row("SELECT service_id, service_name, service_price FROM hr_services WHERE service_id='$sid'");
         if ($svc) {
-            $mrp_total += $svc['service_price'] * $qty;
-            $service_data[] = ['sid' => $sid, 'name' => $svc['service_name'], 'price' => $svc['service_price'], 'qty' => $qty];
+            if ($unit_price <= 0) $unit_price = floatval($svc['service_price']);
+            $mrp_total += $unit_price * $qty;
+            $service_data[] = [
+                'sid'    => $sid,
+                'name'   => $svc['service_name'],
+                'price'  => $unit_price,
+                'qty'    => $qty,
+                'var_id' => $var_id_val,
+            ];
         }
     }
     $savings = max(0, $mrp_total - $selling_price);
@@ -361,18 +374,30 @@ function update_package_new() {
     $gst_applicable = intval($gst_applicable ?? 0);
     $gst_percent    = floatval($gst_percent ?? 0);
     $status         = intval($status ?? 1);
-    $service_ids    = isset($service_id) ? (array)$service_id : [];
-    $quantities     = isset($qty) ? (array)$qty : [];
+    $service_ids    = isset($service_id)     ? (array)$service_id     : [];
+    $quantities     = isset($qty)            ? (array)$qty            : [];
+    $var_ids        = isset($var_id)         ? (array)$var_id         : [];
+    $var_prices     = isset($var_unit_price) ? (array)$var_unit_price : [];
 
     $mrp_total = 0;
     $service_data = [];
     foreach ($service_ids as $i => $sid) {
         $sid = intval($sid);
         $qty = max(1, intval($quantities[$i] ?? 1));
+        $var_id_val = intval($var_ids[$i] ?? 0);
+        $unit_price = isset($var_prices[$i]) && floatval($var_prices[$i]) > 0
+            ? floatval($var_prices[$i]) : 0;
         $svc = select_row("SELECT service_id, service_name, service_price FROM hr_services WHERE service_id='$sid'");
         if ($svc) {
-            $mrp_total += $svc['service_price'] * $qty;
-            $service_data[] = ['sid' => $sid, 'name' => $svc['service_name'], 'price' => $svc['service_price'], 'qty' => $qty];
+            if ($unit_price <= 0) $unit_price = floatval($svc['service_price']);
+            $mrp_total += $unit_price * $qty;
+            $service_data[] = [
+                'sid'    => $sid,
+                'name'   => $svc['service_name'],
+                'price'  => $unit_price,
+                'qty'    => $qty,
+                'var_id' => $var_id_val,
+            ];
         }
     }
     $savings = max(0, $mrp_total - $selling_price);
@@ -466,6 +491,36 @@ function get_services_for_package() {
         FROM hr_services s JOIN hr_servicesCategory sc ON sc.service_catid = s.service_catid
         WHERE s.salon_id='$salon_id' AND s.service_status=1 ORDER BY sc.service_catName, s.service_name");
     return $services ?: [];
+}
+
+function get_services_with_variations() {
+    global $salon_id;
+    // Fetch all active services with category
+    $services = select_array("SELECT s.service_id, s.service_name, s.service_price, sc.service_catName
+        FROM hr_services s
+        LEFT JOIN hr_servicesCategory sc ON sc.service_catid = s.service_catid
+        WHERE s.salon_id='$salon_id' AND s.service_status=1
+        ORDER BY sc.service_catName, s.service_name");
+    if (!$services) return [];
+    // Fetch all variations for this salon in one query
+    $all_vars = select_array("SELECT var_id, service_id, var_name, var_price
+        FROM hr_service_variations WHERE salon_id='$salon_id' ORDER BY sort_order ASC, var_id ASC");
+    // Index variations by service_id
+    $vars_map = [];
+    foreach ($all_vars as $v) {
+        $vars_map[$v['service_id']][] = [
+            'var_id'    => (int)$v['var_id'],
+            'var_name'  => $v['var_name'],
+            'var_price' => (float)$v['var_price'],
+        ];
+    }
+    // Attach variations to each service
+    foreach ($services as &$svc) {
+        $svc['service_id']    = (int)$svc['service_id'];
+        $svc['service_price'] = (float)$svc['service_price'];
+        $svc['variations']    = $vars_map[$svc['service_id']] ?? [];
+    }
+    return $services;
 }
 
 // ──────────────────────────────────────────────────────────
@@ -904,7 +959,8 @@ function membership_report_data() {
     $redeemed   = select_row("SELECT COALESCE(SUM(debit),0) as total FROM hr_customer_wallet w JOIN hr_customer c ON c.cust_id=w.cust_id WHERE c.salon_id='$salon_id'");
 
     $members_list = select_array("SELECT cm.cm_id, cm.plan_name, cm.paid_amount, cm.remaining_amount,
-        cm.wallet_credit, cm.status, cm.expiry_date, cm.invoice_id, 
+        cm.wallet_credit, cm.status, cm.expiry_date, cm.invoice_id, cm.start_date,
+        COALESCE(cm.invoice_id, (SELECT invoice_id FROM hr_invoice WHERE cust_id=c.cust_id AND delete_bill=0 ORDER BY invoice_id DESC LIMIT 1)) as effective_invoice_id,
         (SELECT payment_mode FROM hr_membership_payments WHERE cm_id=cm.cm_id ORDER BY mp_id ASC LIMIT 1) as payment_mode,
         c.cust_id, c.cust_name, c.cust_mobile
         FROM hr_customer_membership cm
@@ -949,6 +1005,7 @@ function package_report_data() {
 
     $pkg_list = select_array("SELECT cp.cp_id, cp.package_name, cp.purchase_price, cp.paid_amount,
         cp.remaining_amount, cp.status, cp.purchase_date, cp.expiry_date, cp.invoice_id, cp.payment_mode,
+        COALESCE(cp.invoice_id, (SELECT invoice_id FROM hr_invoice WHERE cust_id=c.cust_id AND delete_bill=0 ORDER BY invoice_id DESC LIMIT 1)) as effective_invoice_id,
         c.cust_id, c.cust_name, c.cust_mobile
         FROM hr_customer_packages cp
         JOIN hr_customer c ON c.cust_id=cp.cust_id

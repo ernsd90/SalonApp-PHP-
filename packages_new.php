@@ -94,13 +94,15 @@ $(document).ready(function(){
     $(document).on('submit', 'form.ajax-form', function(e){
         e.preventDefault();
         var btn = $(this).find('button[type=submit]');
+        var origText = btn.html();
         btn.html('<i class="ph ph-spinner ph-spin"></i> Saving...').prop('disabled', true);
         $.ajax({ type:'POST', url:'ajax/membership_ajax.php', data:$(this).serialize(),
             success:function(res){
                 var obj = JSON.parse(res);
-                if(obj.error==1){ alert('Error: '+obj.msg); btn.html('Save Package').prop('disabled',false); }
+                if(obj.error==1){ alert('Error: '+obj.msg); btn.html(origText).prop('disabled',false); }
                 else { alert(obj.msg); $('#pkgModalOverlay').removeClass('active'); tbl.draw(false); }
-            }
+            },
+            error: function(){ btn.html(origText).prop('disabled', false); alert('Network error. Please try again.'); }
         });
     });
 });
