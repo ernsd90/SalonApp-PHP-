@@ -48,7 +48,7 @@ if ($pkg_items) {
 }
 .select2-container--default .select2-selection--single .select2-selection__rendered { line-height:1.4 !important; padding:0 !important; font-size:13px; color:var(--text-main); }
 .select2-container--default .select2-selection--single .select2-selection__arrow { top:9px !important; right:10px !important; }
-.select2-dropdown { border:1px solid var(--border-color) !important; border-radius:10px !important; box-shadow:0 8px 24px rgba(0,0,0,.12) !important; overflow:hidden; }
+.select2-dropdown { border:1px solid var(--border-color) !important; border-radius:10px !important; box-shadow:0 8px 24px rgba(0,0,0,.12) !important; overflow:hidden; z-index:9999 !important; }
 .select2-search--dropdown { padding:10px !important; }
 .select2-search--dropdown .select2-search__field { border:1px solid var(--border-color) !important; border-radius:8px !important; padding:8px 12px !important; font-size:13px; width:100%; }
 .select2-results__option { padding:9px 14px !important; font-size:13px; }
@@ -315,7 +315,7 @@ function addSvcRow(selected_id, qty, savedPrice) {
     $sel.select2({
         placeholder: '— Select Service —',
         allowClear: false,
-        dropdownParent: $('#pkgModalContent'),
+        dropdownParent: $('body'),
         width: '100%'
     });
 
