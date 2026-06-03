@@ -197,4 +197,176 @@ function get_crm_data() {
         'data' => $data
     ];
 }
+
+function get_salon_repeat_clients() {
+    global $salon_id, $conn;
+    extract($_REQUEST);
+
+    $where = "i.salon_id = '".mysqli_real_escape_string($conn, $salon_id ?? '')."' AND i.delete_bill = 0";
+
+    if (!empty($from_date) && !empty($to_date)) {
+        $from = mysqli_real_escape_string($conn, $from_date . ' 00:00:00');
+        $to = mysqli_real_escape_string($conn, $to_date . ' 23:59:59');
+        $where .= " AND i.invoice_date >= '$from' AND i.invoice_date <= '$to'";
+    }
+
+    if (isset($search['value']) && $search['value'] != '') {
+        $search_val = mysqli_real_escape_string($conn, $search['value']);
+        $where .= " AND (c.cust_name LIKE '%$search_val%' OR c.cust_mobile LIKE '%$search_val%')";
+    }
+
+    $order_column_index = $order[0]['column'] ?? 2;
+    $order_dir = $order[0]['dir'] ?? 'DESC';
+
+    $order_map = [
+        0 => 'c.cust_name',
+        1 => 'c.cust_mobile',
+        2 => 'total_visits',
+        3 => 'last_visit',
+        4 => 'total_spent'
+    ];
+    $order_by = $order_map[$order_column_index] ?? 'total_visits';
+
+    if (!isset($start)) $start = 0;
+    if (!isset($length)) $length = 10;
+
+    // To get the total records with total_visits >= 2, we need a subquery or a count over grouped query
+    $count_sql = "SELECT COUNT(*) as total FROM (
+                    SELECT c.cust_id 
+                    FROM hr_invoice i 
+                    JOIN hr_customer c ON i.cust_id = c.cust_id 
+                    WHERE $where 
+                    GROUP BY c.cust_id 
+                    HAVING COUNT(DISTINCT i.invoice_id) >= 2
+                  ) as t";
+    $count_res = select_row($count_sql);
+    $total_records = $count_res['total'] ?? 0;
+
+    $sql = "SELECT c.cust_id, c.cust_name, c.cust_mobile, 
+                   COUNT(DISTINCT i.invoice_id) as total_visits,
+                   MAX(i.invoice_date) as last_visit,
+                   SUM(i.grand_total) as total_spent
+            FROM hr_invoice i
+            JOIN hr_customer c ON i.cust_id = c.cust_id
+            WHERE $where
+            GROUP BY c.cust_id
+            HAVING total_visits >= 2
+            ORDER BY $order_by $order_dir";
+
+    if ($length > 0) {
+        $sql .= " LIMIT " . intval($start) . ", " . intval($length);
+    }
+
+    $results = select_array($sql);
+    $data = [];
+
+    foreach ($results as $row) {
+        $wa_text = 'Hello ' . $row['cust_name'] . '! 🌸 Hope you\'re doing well! We\'d love to see you at our salon again soon. Book your appointment today!';
+        $wa_url = 'https://wa.me/91' . preg_replace('/\D/', '', $row['cust_mobile']) . '?text=' . urlencode($wa_text);
+        $wa_btn = '<a href="'.$wa_url.'" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:white;border:none;padding:6px 10px;border-radius:6px;font-size:13px;cursor:pointer;text-decoration:none;font-weight:600;" title="Send WhatsApp"><i class="ph-fill ph-whatsapp-logo"></i></a>';
+        
+        $data[] = [
+            'customer_info' => '<div style="font-weight:700;color:var(--text-main);">'.htmlspecialchars($row['cust_name']).'</div>',
+            'mobile' => htmlspecialchars($row['cust_mobile']),
+            'visits' => '<div style="font-weight:800;color:#0f172a;background:#f1f5f9;display:inline-block;padding:2px 10px;border-radius:12px;">'.$row['total_visits'].'</div>',
+            'last_visit' => '<div style="font-size:13px;">'.date('d M Y', strtotime($row['last_visit'])).'</div>',
+            'total_spent' => '<div style="font-weight:700;color:#059669;">₹'.number_format((float)$row['total_spent'], 2).'</div>',
+            'action' => $wa_btn
+        ];
+    }
+
+    return [
+        'draw' => isset($_REQUEST['draw']) ? intval($_REQUEST['draw']) : 0,
+        'recordsTotal' => $total_records,
+        'recordsFiltered' => $total_records,
+        'data' => $data
+    ];
+}
+
+function get_staff_repeat_clients() {
+    global $salon_id, $conn;
+    extract($_REQUEST);
+
+    $where = "i.salon_id = '".mysqli_real_escape_string($conn, $salon_id ?? '')."' AND i.delete_bill = 0";
+
+    if (!empty($from_date) && !empty($to_date)) {
+        $from = mysqli_real_escape_string($conn, $from_date . ' 00:00:00');
+        $to = mysqli_real_escape_string($conn, $to_date . ' 23:59:59');
+        $where .= " AND i.invoice_date >= '$from' AND i.invoice_date <= '$to'";
+    }
+
+    if (isset($search['value']) && $search['value'] != '') {
+        $search_val = mysqli_real_escape_string($conn, $search['value']);
+        $where .= " AND (c.cust_name LIKE '%$search_val%' OR c.cust_mobile LIKE '%$search_val%' OR s.staff_name LIKE '%$search_val%')";
+    }
+
+    $order_column_index = $order[0]['column'] ?? 3;
+    $order_dir = $order[0]['dir'] ?? 'DESC';
+
+    $order_map = [
+        0 => 's.staff_name',
+        1 => 'c.cust_name',
+        2 => 'c.cust_mobile',
+        3 => 'staff_visits',
+        4 => 'last_visit_with_staff'
+    ];
+    $order_by = $order_map[$order_column_index] ?? 'staff_visits';
+
+    if (!isset($start)) $start = 0;
+    if (!isset($length)) $length = 10;
+
+    $count_sql = "SELECT COUNT(*) as total FROM (
+                    SELECT c.cust_id, s.staff_id
+                    FROM hr_invoice i 
+                    JOIN hr_customer c ON i.cust_id = c.cust_id 
+                    JOIN hr_invoice_staff ist ON ist.invoice_id = i.invoice_id
+                    JOIN hr_staff s ON s.staff_id = ist.staff_id
+                    WHERE $where 
+                    GROUP BY c.cust_id, s.staff_id 
+                    HAVING COUNT(DISTINCT i.invoice_id) >= 2
+                  ) as t";
+    $count_res = select_row($count_sql);
+    $total_records = $count_res['total'] ?? 0;
+
+    $sql = "SELECT s.staff_name, c.cust_id, c.cust_name, c.cust_mobile, 
+                   COUNT(DISTINCT i.invoice_id) as staff_visits,
+                   MAX(i.invoice_date) as last_visit_with_staff
+            FROM hr_invoice i
+            JOIN hr_customer c ON i.cust_id = c.cust_id
+            JOIN hr_invoice_staff ist ON ist.invoice_id = i.invoice_id
+            JOIN hr_staff s ON s.staff_id = ist.staff_id
+            WHERE $where
+            GROUP BY c.cust_id, s.staff_id
+            HAVING staff_visits >= 2
+            ORDER BY $order_by $order_dir";
+
+    if ($length > 0) {
+        $sql .= " LIMIT " . intval($start) . ", " . intval($length);
+    }
+
+    $results = select_array($sql);
+    $data = [];
+
+    foreach ($results as $row) {
+        $wa_text = 'Hello ' . $row['cust_name'] . '! 🌸 Hope you\'re doing well! ' . $row['staff_name'] . ' and our team would love to see you at our salon again soon. Book your appointment today!';
+        $wa_url = 'https://wa.me/91' . preg_replace('/\D/', '', $row['cust_mobile']) . '?text=' . urlencode($wa_text);
+        $wa_btn = '<a href="'.$wa_url.'" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:white;border:none;padding:6px 10px;border-radius:6px;font-size:13px;cursor:pointer;text-decoration:none;font-weight:600;" title="Send WhatsApp"><i class="ph-fill ph-whatsapp-logo"></i></a>';
+
+        $data[] = [
+            'staff_info' => '<div style="font-weight:700;color:#4f46e5;"><i class="ph-fill ph-scissors" style="margin-right:4px;"></i>'.htmlspecialchars($row['staff_name']).'</div>',
+            'customer_info' => '<div style="font-weight:700;color:var(--text-main);">'.htmlspecialchars($row['cust_name']).'</div>',
+            'mobile' => htmlspecialchars($row['cust_mobile']),
+            'visits' => '<div style="font-weight:800;color:#0f172a;background:#f1f5f9;display:inline-block;padding:2px 10px;border-radius:12px;">'.$row['staff_visits'].'</div>',
+            'last_visit' => '<div style="font-size:13px;">'.date('d M Y', strtotime($row['last_visit_with_staff'])).'</div>',
+            'action' => $wa_btn
+        ];
+    }
+
+    return [
+        'draw' => isset($_REQUEST['draw']) ? intval($_REQUEST['draw']) : 0,
+        'recordsTotal' => $total_records,
+        'recordsFiltered' => $total_records,
+        'data' => $data
+    ];
+}
 ?>

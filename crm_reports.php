@@ -71,28 +71,80 @@
 
 <!-- Detailed Table -->
 <div class="card-modern" style="background: white; border-radius: 20px; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); overflow: hidden; margin-bottom: 30px;">
-    <div style="padding: 24px; border-bottom: 1px solid var(--border-color);">
-        <h3 style="font-size: 18px; font-weight: 700; margin: 0; color: var(--text-main);">Customer Analytics Ledger</h3>
+    
+    <!-- TABS NAVIGATION -->
+    <div style="border-bottom: 1px solid var(--border-color); display: flex; overflow-x: auto; scrollbar-width: none;">
+        <button class="tab-btn active" data-target="tab_ledger" style="padding: 16px 24px; border: none; background: transparent; font-weight: 700; font-size: 14px; color: var(--primary); border-bottom: 2px solid var(--primary); cursor: pointer; white-space: nowrap; outline: none;">
+            Customer Ledger
+        </button>
+        <button class="tab-btn" data-target="tab_salon_repeat" style="padding: 16px 24px; border: none; background: transparent; font-weight: 600; font-size: 14px; color: var(--text-muted); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; outline: none;">
+            Salon Repeat Clients
+        </button>
+        <button class="tab-btn" data-target="tab_staff_repeat" style="padding: 16px 24px; border: none; background: transparent; font-weight: 600; font-size: 14px; color: var(--text-muted); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; outline: none;">
+            Staff Repeat Clients
+        </button>
     </div>
+
     <div style="padding: 24px;">
-        <div class="table-responsive">
-            <table id="crm_table" class="table-modern" style="width: 100%;">
-                <thead>
-                    <tr>
-                        <th>Customer</th>
-                        <th>Mobile</th>
-                        <th>Segment</th>
-                        <th>Wallet</th>
-                        <th>Debt</th>
-                        <th>Visits</th>
-                        <th>Last Visit</th>
-                        <th>Lifetime Spend</th>
-                        <th>Subscriptions</th>
-                        <th style="width: 120px;">Action</th>
-                    </tr>
-                </thead>
-            </table>
+        
+        <!-- Tab: Ledger -->
+        <div class="tab-content active" id="tab_ledger">
+            <div class="table-responsive">
+                <table id="crm_table" class="table-modern" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Mobile</th>
+                            <th>Segment</th>
+                            <th>Wallet</th>
+                            <th>Debt</th>
+                            <th>Visits</th>
+                            <th>Last Visit</th>
+                            <th>Lifetime Spend</th>
+                            <th>Subscriptions</th>
+                            <th style="width: 120px;">Action</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
         </div>
+
+        <!-- Tab: Salon Repeat Clients -->
+        <div class="tab-content" id="tab_salon_repeat" style="display:none;">
+            <div class="table-responsive">
+                <table id="salon_repeat_table" class="table-modern" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Mobile</th>
+                            <th>Total Visits</th>
+                            <th>Last Visit</th>
+                            <th>Lifetime Spend</th>
+                            <th style="width: 80px;">Action</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Staff Repeat Clients -->
+        <div class="tab-content" id="tab_staff_repeat" style="display:none;">
+            <div class="table-responsive">
+                <table id="staff_repeat_table" class="table-modern" style="width: 100%;">
+                    <thead>
+                        <tr>
+                            <th>Staff Name</th>
+                            <th>Customer</th>
+                            <th>Mobile</th>
+                            <th>Visits (w/ Staff)</th>
+                            <th>Last Visit</th>
+                            <th style="width: 80px;">Action</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -187,6 +239,71 @@ $(document).ready(function() {
         ]
     });
 
+    var salonRepeatTable = $('#salon_repeat_table').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "responsive": true,
+        "pageLength": 15,
+        "ajax": {
+            "url": "ajax/crm_ajax.php",
+            "type": "POST",
+            "data": function(d) {
+                d.method = "get_salon_repeat_clients";
+                d.from_date = $('#filter_from').val();
+                d.to_date = $('#filter_to').val();
+            }
+        },
+        "columns": [
+            { "data": "customer_info", "orderable": true },
+            { "data": "mobile", "orderable": true },
+            { "data": "visits", "orderable": true },
+            { "data": "last_visit", "orderable": true },
+            { "data": "total_spent", "orderable": true },
+            { "data": "action", "orderable": false }
+        ],
+        "order": [[ 2, "desc" ]]
+    });
+
+    var staffRepeatTable = $('#staff_repeat_table').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "responsive": true,
+        "pageLength": 15,
+        "ajax": {
+            "url": "ajax/crm_ajax.php",
+            "type": "POST",
+            "data": function(d) {
+                d.method = "get_staff_repeat_clients";
+                d.from_date = $('#filter_from').val();
+                d.to_date = $('#filter_to').val();
+            }
+        },
+        "columns": [
+            { "data": "staff_info", "orderable": true },
+            { "data": "customer_info", "orderable": true },
+            { "data": "mobile", "orderable": true },
+            { "data": "visits", "orderable": true },
+            { "data": "last_visit", "orderable": true },
+            { "data": "action", "orderable": false }
+        ],
+        "order": [[ 3, "desc" ]]
+    });
+
+    // Tab Logic
+    $('.tab-btn').click(function() {
+        $('.tab-btn').removeClass('active').css({'color': 'var(--text-muted)', 'border-bottom-color': 'transparent', 'font-weight': '600'});
+        $(this).addClass('active').css({'color': 'var(--primary)', 'border-bottom-color': 'var(--primary)', 'font-weight': '700'});
+        
+        $('.tab-content').hide();
+        var target = $(this).data('target');
+        $('#' + target).show();
+        
+        // Redraw table when shown
+        if(target === 'tab_ledger') dataTable.columns.adjust().draw();
+        if(target === 'tab_salon_repeat') salonRepeatTable.columns.adjust().draw();
+        if(target === 'tab_staff_repeat') staffRepeatTable.columns.adjust().draw();
+    });
+
     function loadKPIs() {
         $.ajax({
             url: "ajax/crm_ajax.php",
@@ -213,6 +330,8 @@ $(document).ready(function() {
 
     $('#btn_apply_filter').click(function() {
         dataTable.draw();
+        salonRepeatTable.draw();
+        staffRepeatTable.draw();
         loadKPIs();
     });
 
