@@ -954,20 +954,41 @@ $(document).ready(function() {
                 var actualSvcId = svcId.replace('s_', '');
 
                 // Check if this service is in the allowed list
-                if(coveredServiceIds.length > 0 && coveredServiceIds.indexOf(actualSvcId) === -1) {
+                if (coveredServiceIds.length > 0 && coveredServiceIds.indexOf(actualSvcId) === -1) {
                     $(this).css('outline','2px solid #dc2626');
                     invalidServices.push(svcName || 'Unknown Service');
+                    return; // skip variation check for services not in package
                 }
+
+                // ── Variation mismatch check ──────────────────────────────────
+                // If the package item has a specific variation, the row MUST use that same var
+                var pkgItemForRow = pkgServices.find(function(p) {
+                    return String(p.service_id).trim() === actualSvcId;
+                });
+                if (pkgItemForRow && pkgItemForRow.matched_var_id && pkgItemForRow.matched_var_id != 0) {
+                    var rowVarId = String($(this).find('.row-var-id').val() || '0').trim();
+                    if (rowVarId !== String(pkgItemForRow.matched_var_id)) {
+                        $(this).css('outline','2px solid #f97316');
+                        invalidServices.push(
+                            (svcName || 'Unknown') +
+                            ' ⚠ Wrong variation selected. Package requires: «' +
+                            pkgItemForRow.matched_var_name + '»'
+                        );
+                    }
+                }
+                // ─────────────────────────────────────────────────────────────
             });
 
-            if(invalidServices.length > 0) {
-                var covered = pkgServices.map(function(s){ return s.service_name; }).join(', ') || 'None';
+            if (invalidServices.length > 0) {
+                var covered = pkgServices.map(function(s) {
+                    return s.service_name + (s.matched_var_name ? ' (' + s.matched_var_name + ')' : '');
+                }).join(', ') || 'None';
                 alert(
-                    '⚠ Package Mismatch!\n\n' +
-                    'The following service(s) are NOT covered by the selected package:\n• ' +
-                    invalidServices.join('\n• ') +
-                    '\n\nThe selected package only covers:\n  ' + covered +
-                    '\n\nPlease remove the non-covered services from the bill, or change the payment mode.'
+                    '\u26a0 Package Mismatch!\n\n' +
+                    'The following issue(s) were found:\n\u2022 ' +
+                    invalidServices.join('\n\u2022 ') +
+                    '\n\nThis package covers:\n  ' + covered +
+                    '\n\nPlease correct the billing rows or change the payment mode.'
                 );
                 e.preventDefault();
                 return false;
@@ -1249,7 +1270,41 @@ $(document).ready(function() {
     $(document).on('change', '#pos_active_pkg_select', function() {
         var cp_id = $(this).val();
         $('#pos_cp_id_hidden').val(cp_id);
-        if(!cp_id) { $('#pos_pkg_services').html(''); return; }
+        if (!cp_id) { $('#pos_pkg_services').html(''); return; }
+
+        // Re-lock existing billing rows to match the newly selected package
+        $('#billing_tbody tr.item-row').each(function() {
+            var $tr  = $(this);
+            var $svc = $tr.find('.select2-service');
+            if (!$svc.length) return;
+            var svcVal = $svc.val() || '';
+            if (!svcVal || svcVal === '0' || svcVal.startsWith('p_')) return;
+            var numericId = svcVal.replace('s_', '');
+
+            var pkgItem = window.activePackages && window.activePackages.find(function(p) {
+                return String(p.cp_id) === String(cp_id) && String(p.service_id) === numericId;
+            });
+            if (!pkgItem) return;
+
+            // Lock price to package price
+            $tr.find('.row-price').val(pkgItem.service_price.toFixed(2)).prop('readonly', true).css('opacity', 0.85);
+            $tr.find('.row-price-org').val(pkgItem.service_price.toFixed(2));
+
+            // Remove old pkg label + hide free dropdown
+            $tr.find('.row-variation-pkg-label').remove();
+            $tr.find('.row-variation-wrap').hide();
+            $tr.find('.row-var-id').val(pkgItem.matched_var_id || 0);
+
+            if (pkgItem.matched_var_id && pkgItem.matched_var_name) {
+                var badge = $('<div class="row-variation-pkg-label" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;border:1px solid #86efac;">' +
+                    '<i class="ph ph-tag" style="font-size:14px;"></i>' + pkgItem.matched_var_name +
+                    ' <span style="opacity:.7;font-weight:400;">(pkg price)</span>' +
+                '</div>');
+                $tr.find('.row-variation-wrap').after(badge);
+            }
+        });
+        calculateGrandTotal();
+
         // Show services in selected package
         var html = '<div style="padding:8px 0;">';
         if (window.activePackages) {
