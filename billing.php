@@ -693,12 +693,14 @@ $(document).ready(function() {
         var catid = $(this).find(':selected').attr('data-catid');
         tr.find('.row-catid').val(catid);
 
-        // Clear any previous variation state
+        // Clear any previous variation state + pkg annotations
         tr.find('.row-variation-wrap').hide();
         tr.find('.row-var-select').html('<option value="">— Select Variation —</option>');
         tr.find('.row-variation-pkg-label').remove();
+        tr.find('.row-pkg-mismatch-warn').remove();
         tr.find('.row-var-id').val('');
         tr.find('.row-price').prop('readonly', false).css('opacity', 1);
+        tr.css('outline', '');
 
         var serviceId = $(this).val();
         if (serviceId != "0") {
@@ -725,10 +727,9 @@ $(document).ready(function() {
                     tr.find('.row-price').val(pkgPrice.toFixed(2)).prop('readonly', true).css('opacity', 0.85);
                     tr.find('.row-price-org').val(pkgPrice.toFixed(2));
 
-                    // Show variation label if this price matched a variation
+                    // Show variation badge if price matched a variation
                     if (pkgItem.matched_var_id && pkgItem.matched_var_name) {
                         tr.find('.row-var-id').val(pkgItem.matched_var_id);
-                        // Render a read-only badge instead of a dropdown
                         var varLabel = $('<div class="row-variation-pkg-label" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;border:1px solid #86efac;">' +
                             '<i class="ph ph-tag" style="font-size:14px;"></i>' + pkgItem.matched_var_name +
                             ' <span style="opacity:.7;font-weight:400;">(pkg price)</span>' +
@@ -736,7 +737,24 @@ $(document).ready(function() {
                         tr.find('.row-variation-wrap').after(varLabel);
                     }
                     calculateGrandTotal();
-                    return; // skip the normal AJAX price/variation fetch
+                    return; // skip normal AJAX fetch
+                } else {
+                    // Service not covered by this package — show immediate inline warning
+                    var coveredNames = window.activePackages
+                        .filter(function(p){ return String(p.cp_id) === cp_id; })
+                        .map(function(p){ return p.service_name + (p.matched_var_name ? ' (' + p.matched_var_name + ')' : ''); })
+                        .join(', ');
+                    var warnBanner = $('<div class="row-pkg-mismatch-warn" style="margin-top:6px;display:flex;align-items:center;gap:6px;padding:5px 10px;background:#fee2e2;color:#dc2626;border-radius:7px;font-size:12px;font-weight:600;border:1px solid #fca5a5;">' +
+                        '<i class="ph ph-warning" style="font-size:15px;"></i>' +
+                        'Not covered by package. Pkg covers: ' + (coveredNames || 'none') +
+                    '</div>');
+                    tr.find('td:first').append(warnBanner);
+                    tr.css('outline', '2px solid #dc2626');
+                    // Set price to 0 so it is obvious the package won't cover this
+                    tr.find('.row-price').val('').prop('readonly', false).css('opacity', 1);
+                    tr.find('.row-price-org').val('');
+                    // Don't return — still fall through to fetch base price so staff can
+                    // switch payment mode and still have a price
                 }
             }
             // ─────────────────────────────────────────────────────────────────
@@ -1129,13 +1147,31 @@ $(document).ready(function() {
             calculateGrandTotal();
         }
         // If package selected and no customer loaded, show hint
-        if(mode === 'pkg') {
+        if (mode === 'pkg') {
             var custId = $('.cust_id').val();
-            if(!custId) {
+            if (!custId) {
                 $('#pkg_no_cust_msg').show(); $('#pkg_select_wrap').hide();
             } else {
                 renderPosPkgDropdown();
             }
+        } else {
+            // Switching AWAY from pkg mode — restore all locked rows to normal
+            $('#billing_tbody tr.item-row').each(function() {
+                var $tr = $(this);
+                $tr.find('.row-variation-pkg-label').remove();
+                $tr.find('.row-pkg-mismatch-warn').remove();
+                $tr.css('outline', '');
+                $tr.find('.row-price').prop('readonly', false).css('opacity', 1);
+                // If there is a variation wrap with options, show it again
+                // (we can't perfectly restore because the AJAX is async, so just unlock)
+                var $varWrap = $tr.find('.row-variation-wrap');
+                var $varSel  = $tr.find('.row-var-select');
+                // If the var select has real options (not just the placeholder), show the wrap
+                if ($varSel.find('option').length > 1) {
+                    $varWrap.show();
+                }
+            });
+            calculateGrandTotal();
         }
         if(mode === 'wallet') {
             <?php
