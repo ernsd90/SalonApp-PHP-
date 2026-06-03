@@ -23,7 +23,7 @@ if($job_card_id != ''){
 }
 
 // Fetch categories, staff
-$query = "SELECT * FROM `hr_servicesCategory` where salon_id='".$salon_id."' ORDER BY service_catName ASC";
+$query = "SELECT * FROM `hr_servicesCategory` where salon_id='".$salon_id."' ORDER BY sort_order ASC, service_catName ASC";
 $service_catNames = select_array($query);
 
 // Fetch salon details for GST settings

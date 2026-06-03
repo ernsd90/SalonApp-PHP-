@@ -17,6 +17,16 @@ if($method && function_exists($method)){
 
 // Auto-inject schema updates for V3
 try {
+    $conn->query("ALTER TABLE `hr_servicesCategory` ADD COLUMN `sort_order` INT NOT NULL DEFAULT '0' AFTER `service_catName`");
+} catch(Exception $e) {
+    // Column already exists, ignore
+}
+try {
+    $conn->query("ALTER TABLE `hr_salon` ADD COLUMN `logo` VARCHAR(500) DEFAULT NULL AFTER `salon_status`");
+} catch(Exception $e) {
+    // Column already exists, ignore
+}
+try {
     $conn->query("ALTER TABLE `hr_salon` ADD COLUMN `gst_percentage` DECIMAL(5,2) NOT NULL DEFAULT '0.00' AFTER `salon_gst`");
 } catch(Exception $e) {
     // Column already exists, ignore
@@ -73,7 +83,22 @@ function create_salon(){
         $make_webhook_url = isset($make_webhook_url) ? trim($make_webhook_url) : '';
         $round_off = isset($round_off) ? intval($round_off) : 0;
         $google_review_link = isset($google_review_link) ? trim($google_review_link) : '';
-        $sql = "INSERT INTO `hr_salon` SET `salon_name`='".$salon_name."',`salon_address`='".$salon_address."',`salon_contact`='".$salon_contact."',`gst_enable`='".$gst_enable."',`salon_gst`='".$salon_gst."',`gst_percentage`='".$gst_percentage."',`include_gst`='".$include_gst."',`firm_name`='".$firm_name."',`whatsapp_enable`='".$whatsapp_enable."',`whatsapp_api`='".$whatsapp_api."',`make_enable`='".$make_enable."',`make_webhook_url`='".$make_webhook_url."', `salon_status`='".$salon_status."', `round_off`='".$round_off."', `google_review_link`='".$google_review_link."'";
+        
+        $logo_path = '';
+        if(isset($_FILES['logo']) && $_FILES['logo']['error'] == UPLOAD_ERR_OK){
+            $ext = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
+            if(in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])){
+                if(!is_dir('../uploads')){
+                    mkdir('../uploads', 0777, true);
+                }
+                $filename = 'logo_' . time() . '_' . uniqid() . '.' . $ext;
+                if(move_uploaded_file($_FILES['logo']['tmp_name'], '../uploads/' . $filename)){
+                    $logo_path = 'uploads/' . $filename;
+                }
+            }
+        }
+
+        $sql = "INSERT INTO `hr_salon` SET `salon_name`='".$salon_name."',`salon_address`='".$salon_address."',`salon_contact`='".$salon_contact."',`gst_enable`='".$gst_enable."',`salon_gst`='".$salon_gst."',`gst_percentage`='".$gst_percentage."',`include_gst`='".$include_gst."',`firm_name`='".$firm_name."',`whatsapp_enable`='".$whatsapp_enable."',`whatsapp_api`='".$whatsapp_api."',`make_enable`='".$make_enable."',`make_webhook_url`='".$make_webhook_url."', `salon_status`='".$salon_status."', `round_off`='".$round_off."', `google_review_link`='".$google_review_link."', `logo`='".$logo_path."'";
         insert_query($sql);
         $msg = "Salon Added Successfully";
     }
@@ -91,8 +116,48 @@ function update_salon(){
     $round_off = isset($round_off) ? intval($round_off) : 0;
     $google_review_link = isset($google_review_link) ? trim($google_review_link) : '';
 
-	$sql = "UPDATE `hr_salon` SET `salon_name`='".$salon_name."',`salon_address`='".$salon_address."',`salon_contact`='".$salon_contact."',`gst_enable`='".$gst_enable."',`salon_gst`='".$salon_gst."',`gst_percentage`='".$gst_percentage."',`include_gst`='".$include_gst."',`firm_name`='".$firm_name."',`whatsapp_enable`='".$whatsapp_enable."',`whatsapp_api`='".$whatsapp_api."',`make_enable`='".$make_enable."',`make_webhook_url`='".$make_webhook_url."', `salon_status`='".$salon_status."', `round_off`='".$round_off."', `google_review_link`='".$google_review_link."' Where salon_id = '".$salon_id."'";
+    // Fetch existing logo
+    $existing = select_row("SELECT logo FROM `hr_salon` WHERE salon_id='".mysqli_real_escape_string($GLOBALS['conn'], $salon_id)."'");
+    $logo_path = $existing ? $existing['logo'] : '';
+
+    if(isset($_POST['remove_logo']) && $_POST['remove_logo'] == 1){
+        if(!empty($logo_path) && file_exists('../' . $logo_path)){
+            @unlink('../' . $logo_path);
+        }
+        $logo_path = '';
+    }
+
+    if(isset($_FILES['logo']) && $_FILES['logo']['error'] == UPLOAD_ERR_OK){
+        // Delete old logo file if it exists
+        if(!empty($logo_path) && file_exists('../' . $logo_path)){
+            @unlink('../' . $logo_path);
+        }
+        
+        $ext = strtolower(pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION));
+        if(in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])){
+            if(!is_dir('../uploads')){
+                mkdir('../uploads', 0777, true);
+            }
+            $filename = 'logo_' . time() . '_' . uniqid() . '.' . $ext;
+            if(move_uploaded_file($_FILES['logo']['tmp_name'], '../uploads/' . $filename)){
+                $logo_path = 'uploads/' . $filename;
+            }
+        }
+    }
+
+	$sql = "UPDATE `hr_salon` SET `salon_name`='".$salon_name."',`salon_address`='".$salon_address."',`salon_contact`='".$salon_contact."',`gst_enable`='".$gst_enable."',`salon_gst`='".$salon_gst."',`gst_percentage`='".$gst_percentage."',`include_gst`='".$include_gst."',`firm_name`='".$firm_name."',`whatsapp_enable`='".$whatsapp_enable."',`whatsapp_api`='".$whatsapp_api."',`make_enable`='".$make_enable."',`make_webhook_url`='".$make_webhook_url."', `salon_status`='".$salon_status."', `round_off`='".$round_off."', `google_review_link`='".$google_review_link."', `logo`='".$logo_path."' Where salon_id = '".$salon_id."'";
     update_query($sql);
+    
+    // Update active session metadata in real-time if editing the currently active outlet
+    if($salon_id == get_active_salon_id() && isset($_SESSION['userdata'])){
+        $userdata = json_decode($_SESSION['userdata'], true);
+        $userdata['logo'] = $logo_path;
+        $userdata['salon_name'] = $salon_name;
+        $userdata['salon_address'] = $salon_address;
+        $_SESSION['userdata'] = json_encode($userdata);
+        setcookie('userdata', json_encode($userdata), time() + (86400 * 90), "/");
+    }
+
     $msg = "Salon Updated Successfully";
 
     return array("msg" => $msg,"error"=>$error);
@@ -193,11 +258,12 @@ function get_salon(){
 /*----Services Category--------*/
 
 function create_services_cat(){
-    global $user_id, $salon_id;
+    global $user_id, $salon_id, $conn;
     $error = 0; 
     extract($_POST);
 
     $service_catName = ucwords(strtolower(trim($service_catName)));
+    $sort_order = isset($sort_order) ? intval($sort_order) : 0;
 
     $sql = "SELECT * FROM `hr_servicesCategory` WHERE `service_catName`='".$service_catName."' and `salon_id`='".$salon_id."'";
     $ttl = num_rows($sql);
@@ -205,7 +271,7 @@ function create_services_cat(){
         $msg = "Category Already Exist";
         $error = 1;
     }else{
-         $sql = "INSERT INTO `hr_servicesCategory` SET `service_catName`='".$service_catName."',`salon_id`='".$salon_id."',`user_id`='".$user_id."'";
+         $sql = "INSERT INTO `hr_servicesCategory` SET `service_catName`='".$service_catName."',`salon_id`='".$salon_id."',`user_id`='".$user_id."', `sort_order`='".$sort_order."'";
         insert_query($sql);
         $msg = "Service Category Added Successfully";
     }
@@ -213,11 +279,12 @@ function create_services_cat(){
     return array("msg" => $msg,"error"=>$error);
 }
 function update_services_cat(){
-    
+    global $conn;
     extract($_POST);
     $service_catName = ucwords(strtolower(trim($service_catName)));
+    $sort_order = isset($sort_order) ? intval($sort_order) : 0;
 
-	$sql = "UPDATE `hr_servicesCategory` SET `service_catName`='".$service_catName."'  Where service_catid = '".$service_catid."'";
+	$sql = "UPDATE `hr_servicesCategory` SET `service_catName`='".$service_catName."', `sort_order`='".$sort_order."' Where service_catid = '".$service_catid."'";
     update_query($sql);
     $msg = "Service Category Updated Successfully";
 
@@ -274,7 +341,7 @@ function get_serviceCat(){
         if (isset($start)) { $page  = $start; } else { $page=1; }; 
         $start_from = $start; 
 
-        $sql = "SELECT service_catid,service_catName FROM `hr_servicesCategory` where  `salon_id`='".$salon_id."' $where ORDER BY service_catid desc";
+        $sql = "SELECT service_catid,service_catName,sort_order FROM `hr_servicesCategory` where  `salon_id`='".$salon_id."' $where ORDER BY sort_order ASC, service_catName ASC";
         $total_records = num_rows($sql); 
     
 		$sql .= " LIMIT $start_from, $length";
@@ -449,8 +516,18 @@ function get_service(){
         
         if (isset($start)) { $page  = $start; } else { $page=1; }; 
         $start_from = $start; 
+        
+        $order_by = "ORDER BY service_id DESC";
+        if(isset($_REQUEST['order'])) {
+            $cols = ['service_id', 'service_name', 'service_catid', 'service_price', 'service_reminder', 'service_status'];
+            $col_idx = intval($_REQUEST['order'][0]['column']);
+            if(isset($cols[$col_idx])) {
+                $order_dir = (strtolower($_REQUEST['order'][0]['dir']) === 'asc') ? 'ASC' : 'DESC';
+                $order_by = "ORDER BY " . $cols[$col_idx] . " " . $order_dir;
+            }
+        }
 
-        $sql = "SELECT * FROM `hr_services`  where  `salon_id`='".$salon_id."' $where ORDER BY service_id desc";
+        $sql = "SELECT * FROM `hr_services`  where  `salon_id`='".$salon_id."' $where $order_by";
         $total_records = num_rows($sql); 
     
 		$sql .= " LIMIT $start_from, $length";

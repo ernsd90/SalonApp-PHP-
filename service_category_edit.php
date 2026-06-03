@@ -24,7 +24,7 @@ $salon_id = get_session_data('salon_id');
 
 <form class="ajax-form" data-action-url="ajax/salon_ajax.php" method="post" style="padding: 24px;">
     
-    <input name="method" type="hidden" value="<?= $user_action == 'create' ? 'create_serviceCat' : 'update_serviceCat' ?>">
+    <input name="method" type="hidden" value="<?= $user_action == 'create' ? 'create_services_cat' : 'update_services_cat' ?>">
     <?php if($user_action == 'edit') echo '<input name="service_catid" type="hidden" value="'.$service_catid.'">'; ?>
     <input name="salon_id" type="hidden" value="<?= $salon_id ?>">
     
@@ -33,6 +33,11 @@ $salon_id = get_session_data('salon_id');
         <div class="form-group">
             <label>Category Label</label>
             <input required name="service_catName" type="text" class="form-control" placeholder="e.g. Hair Coloring, Massages" value="<?= htmlspecialchars($service_catName) ?>">
+        </div>
+        
+        <div class="form-group">
+            <label>Sort Order (Lowest appears first)</label>
+            <input required name="sort_order" type="number" class="form-control" placeholder="e.g. 1" value="<?= htmlspecialchars($sort_order ?? '0') ?>">
         </div>
         
     </div>

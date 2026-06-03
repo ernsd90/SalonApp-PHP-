@@ -30,6 +30,7 @@ include 'header.php';
                 <thead>
                     <tr>
                         <th style="width: 60px;">ID</th>
+                        <th style="width: 80px;">Sort Order</th>
                         <th>Category Name</th>
                         <th style="width: 120px;">Actions</th>
                     </tr>
@@ -75,6 +76,12 @@ $(document).ready(function() {
         },
         "columns": [
             { "data": "service_catid" },
+            { 
+                "data": "sort_order",
+                "render": function(data) {
+                    return '<div style="font-weight:700; color:var(--text-muted);">' + (data || '0') + '</div>';
+                }
+            },
             { 
                 "data": "service_catName",
                 "render": function(data) {
