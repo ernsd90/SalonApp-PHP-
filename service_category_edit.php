@@ -37,7 +37,7 @@ $salon_id = get_session_data('salon_id');
         
         <div class="form-group">
             <label>Sort Order (Lowest appears first)</label>
-            <input required name="sort_order" type="number" class="form-control" placeholder="e.g. 1" value="<?= htmlspecialchars($sort_order ?? '0') ?>">
+            <input required name="sort_order" type="number" class="form-control" placeholder="e.g. 50" value="<?= htmlspecialchars($sort_order ?? '50') ?>">
         </div>
         
     </div>

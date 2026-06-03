@@ -353,7 +353,7 @@ function get_serviceCat(){
             extract($users);
 
             if(check_user_permission("cataloge","edit",$user_id)){
-                $edit_btn = '<button type="button" class="btn btn-xs btn-outline-info  modalButtonCommon" data-toggle="modal" data-href="services_cat_edit.php?service_catid='.$service_catid.'"><i class="fa fa-edit "></i></button>';
+                $edit_btn = '<button type="button" class="btn btn-xs btn-outline-info  modalButtonCommon" data-toggle="modal" data-href="service_category_edit.php?service_catid='.$service_catid.'"><i class="fa fa-edit "></i></button>';
             }
 			if(check_user_permission("cataloge","delete",$user_id)){
                 $del_btn = '<button type="button" class="btn btn-xs btn-outline-danger modalButtonCommon" data-toggle="modal" data-href="common_delete.php?service_catid='.$service_catid.'"><i class="fa fa-trash "></i> </button>';
