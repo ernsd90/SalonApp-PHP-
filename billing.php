@@ -1308,7 +1308,7 @@ $(document).ready(function() {
         $('#pos_cp_id_hidden').val(cp_id);
         if (!cp_id) { $('#pos_pkg_services').html(''); return; }
 
-        // Re-lock existing billing rows to match the newly selected package
+        // Validate & re-lock existing billing rows against the newly selected package
         $('#billing_tbody tr.item-row').each(function() {
             var $tr  = $(this);
             var $svc = $tr.find('.select2-service');
@@ -1320,23 +1320,63 @@ $(document).ready(function() {
             var pkgItem = window.activePackages && window.activePackages.find(function(p) {
                 return String(p.cp_id) === String(cp_id) && String(p.service_id) === numericId;
             });
-            if (!pkgItem) return;
 
-            // Lock price to package price
+            // Always clean up previous pkg annotations first
+            $tr.find('.row-variation-pkg-label').remove();
+            $tr.find('.row-pkg-mismatch-warn').remove();
+            $tr.css('outline', '');
+
+            if (!pkgItem) {
+                // Service not in this package — show warning, don't touch price
+                var coveredNames = (window.activePackages || [])
+                    .filter(function(p){ return String(p.cp_id) === String(cp_id); })
+                    .map(function(p){ return p.service_name + (p.matched_var_name ? ' (' + p.matched_var_name + ')' : ''); })
+                    .join(', ');
+                $tr.find('td:first').append(
+                    $('<div class="row-pkg-mismatch-warn" style="margin-top:6px;display:flex;align-items:center;gap:6px;padding:5px 10px;background:#fee2e2;color:#dc2626;border-radius:7px;font-size:12px;font-weight:600;border:1px solid #fca5a5;">' +
+                        '<i class="ph ph-warning" style="font-size:15px;"></i>' +
+                        'Not covered by this package. Package covers: ' + (coveredNames || 'none') +
+                    '</div>')
+                );
+                $tr.css('outline', '2px solid #dc2626');
+                $tr.find('.row-price').prop('readonly', false).css('opacity', 1);
+                return;
+            }
+
+            // Service IS in package — check variation conflict
+            var existingVarId   = String($tr.find('.row-var-id').val() || '0').trim();
+            var requiredVarId   = String(pkgItem.matched_var_id || 0);
+            var requiredVarName = pkgItem.matched_var_name || '';
+            var hasRequiredVar  = requiredVarId !== '0';
+            var hasExistingVar  = existingVarId !== '0' && existingVarId !== '';
+            var varMismatch     = hasRequiredVar && hasExistingVar && (existingVarId !== requiredVarId);
+
+            if (varMismatch) {
+                // Wrong variation already selected — warn and DO NOT override
+                $tr.find('td:first').append(
+                    $('<div class="row-pkg-mismatch-warn" style="margin-top:6px;display:flex;align-items:center;gap:6px;padding:5px 10px;background:#fee2e2;color:#dc2626;border-radius:7px;font-size:12px;font-weight:600;border:1px solid #fca5a5;">' +
+                        '<i class="ph ph-warning" style="font-size:15px;"></i>' +
+                        'Wrong variation! Package requires <strong style="margin:0 3px;">\u00ab' + requiredVarName + '\u00bb</strong> — please change it.' +
+                    '</div>')
+                );
+                $tr.css('outline', '2px solid #dc2626');
+                $tr.find('.row-variation-wrap').show();
+                $tr.find('.row-price').prop('readonly', false).css('opacity', 1);
+                return; // stop here — do NOT lock price or replace badge
+            }
+
+            // No conflict — lock price and show variation badge
             $tr.find('.row-price').val(pkgItem.service_price.toFixed(2)).prop('readonly', true).css('opacity', 0.85);
             $tr.find('.row-price-org').val(pkgItem.service_price.toFixed(2));
-
-            // Remove old pkg label + hide free dropdown
-            $tr.find('.row-variation-pkg-label').remove();
             $tr.find('.row-variation-wrap').hide();
             $tr.find('.row-var-id').val(pkgItem.matched_var_id || 0);
-
-            if (pkgItem.matched_var_id && pkgItem.matched_var_name) {
-                var badge = $('<div class="row-variation-pkg-label" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;border:1px solid #86efac;">' +
-                    '<i class="ph ph-tag" style="font-size:14px;"></i>' + pkgItem.matched_var_name +
-                    ' <span style="opacity:.7;font-weight:400;">(pkg price)</span>' +
-                '</div>');
-                $tr.find('.row-variation-wrap').after(badge);
+            if (hasRequiredVar && requiredVarName) {
+                $tr.find('.row-variation-wrap').after(
+                    $('<div class="row-variation-pkg-label" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;border:1px solid #86efac;">' +
+                        '<i class="ph ph-tag" style="font-size:14px;"></i>' + requiredVarName +
+                        ' <span style="opacity:.7;font-weight:400;">(pkg price)</span>' +
+                    '</div>')
+                );
             }
         });
         calculateGrandTotal();
