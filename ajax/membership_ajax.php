@@ -788,7 +788,7 @@ function get_active_packages_for_billing() {
     $cust_id = intval($cust_id);
     $today   = date('Y-m-d');
     $rows = select_array("SELECT cp.cp_id, cp.pkg_id, cp.package_name, cp.expiry_date,
-        pi.service_id, pi.service_name, pi.quantity,
+        pi.service_id, pi.service_name, pi.quantity, pi.service_price,
         COALESCE(SUM(u.qty_used),0) AS used
         FROM hr_customer_packages cp
         JOIN hr_package_items pi ON pi.pkg_id = cp.pkg_id
@@ -797,20 +797,47 @@ function get_active_packages_for_billing() {
           AND cp.status='active' AND cp.expiry_date >= '$today'
         GROUP BY pi.item_id
         HAVING (pi.quantity - used) > 0");
+
+    // Fetch all variations for this salon once (avoid N+1 per row)
+    $all_vars_raw = select_array("SELECT var_id, service_id, var_name, var_price
+        FROM hr_service_variations WHERE salon_id='$salon_id' ORDER BY sort_order ASC, var_id ASC");
+    $vars_map = [];
+    foreach ($all_vars_raw as $v) {
+        $vars_map[$v['service_id']][] = $v;
+    }
+
     $out = [];
     foreach ($rows as $r) {
+        $variations  = $vars_map[$r['service_id']] ?? [];
+        // Find the variation whose price matches the package item's saved price (±₹0.01 tolerance)
+        $matched_var = null;
+        foreach ($variations as $v) {
+            if (abs(floatval($v['var_price']) - floatval($r['service_price'])) < 0.01) {
+                $matched_var = $v;
+                break;
+            }
+        }
         $out[] = [
-            'cp_id'        => $r['cp_id'],
-            'pkg_id'       => $r['pkg_id'],
-            'package_name' => $r['package_name'],
-            'service_id'   => $r['service_id'],
-            'service_name' => $r['service_name'],
-            'remaining'    => (int)$r['quantity'] - (int)$r['used'],
-            'expiry_date'  => $r['expiry_date'],
+            'cp_id'            => $r['cp_id'],
+            'pkg_id'           => $r['pkg_id'],
+            'package_name'     => $r['package_name'],
+            'service_id'       => $r['service_id'],
+            'service_name'     => $r['service_name'],
+            'service_price'    => (float)$r['service_price'],
+            'remaining'        => (int)$r['quantity'] - (int)$r['used'],
+            'expiry_date'      => $r['expiry_date'],
+            'variations'       => array_values(array_map(fn($v) => [
+                'var_id'    => (int)$v['var_id'],
+                'var_name'  => $v['var_name'],
+                'var_price' => (float)$v['var_price'],
+            ], $variations)),
+            'matched_var_id'   => $matched_var ? (int)$matched_var['var_id']   : 0,
+            'matched_var_name' => $matched_var ? $matched_var['var_name']       : '',
         ];
     }
     return $out;
 }
+
 
 function get_wallet_ledger() {
     global $salon_id;

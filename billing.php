@@ -136,7 +136,7 @@ $staff = select_array($query);
                         <th style="width: 10%;">Qty</th>
                         <th style="width: 15%;">Price (₹)</th>
                         <?php if(isset($gst_enable) && $gst_enable != "no"): ?>
-                        <th style="width: 10%;">Tax</th>
+                        <th style="width: 10%;" class="tax-col-header">Tax</th>
                         <?php endif; ?>
                         <th style="width: 10%; text-align: right;">Total</th>
                         <th style="width: 40px;"></th>
@@ -290,7 +290,7 @@ $staff = select_array($query);
                 </div>
 
                 <?php if(isset($gst_enable) && $gst_enable != "no"): ?>
-                <div style="display: flex; justify-content: space-between; font-size: 15px; color: var(--text-main);">
+                <div style="display: flex; justify-content: space-between; font-size: 15px; color: var(--text-main);" class="tax-summary-row">
                     <span>Tax Total</span>
                     <span id="taxTotal" style="font-weight: 600;">₹0.00</span>
                 </div>
@@ -318,6 +318,16 @@ $staff = select_array($query);
                 <div id="payable_summary_row" style="display: none; justify-content: space-between; font-size: 18px; color: var(--danger); font-weight: 700; margin-top: 8px; border-top: 1px dashed var(--border-color); padding-top: 8px;">
                     <span>Amount to Pay</span>
                     <span id="payable_summary_val">₹0.00</span>
+                </div>
+
+                <div id="amount_paid_wrapper" style="display: flex; justify-content: space-between; font-size: 16px; color: var(--text-main); font-weight: 600; margin-top: 16px; align-items: center; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <span>Amount Paid <span style="font-size:12px; font-weight:400; color:var(--text-muted); display:block;">Leave empty for full payment</span></span>
+                    <input class="form-control text-right calcEvent" id="amount_paid" name="amount_paid" type="number" step="any" min="0" placeholder="Full Amount" style="background: white; width: 140px; font-weight: 700; color: var(--success); font-size: 16px;">
+                </div>
+
+                <div id="outstanding_summary_row" style="display: none; justify-content: space-between; font-size: 15px; color: var(--danger); font-weight: 600; margin-top: 8px;">
+                    <span>Pending Debt</span>
+                    <span id="outstanding_summary_val">₹0.00</span>
                 </div>
 
                 <button type="submit" name="save_bill_print" class="btn-primary" style="margin-top: auto; width: 100%; padding: 16px; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
@@ -476,7 +486,7 @@ function addBillingRow(prefillData = null) {
     // Tax (Optional)
     var tdTax = '';
     if(gstEnabled) {
-        tdTax = $('<td><input type="hidden" name="service_gst[]" class="row-gst" value="'+taxValue+'"><span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">'+taxValue+'%</span></td>');
+        tdTax = $('<td class="tax-col-cell"><input type="hidden" name="service_gst[]" class="row-gst" value="'+taxValue+'"><span style="font-size: 13px; color: var(--text-muted); font-weight: 500;">'+taxValue+'%</span></td>');
     }
 
     // Total
@@ -510,10 +520,9 @@ function calculateGrandTotal() {
     var subtotal = 0;
     var taxtotal = 0;
     
-    var currentGstEnabled = gstEnabled;
-    if ($('.payment_mode').val() === 'wallet' && !activeCustGstOnService) {
-        currentGstEnabled = false;
-    }
+    // Wallet payments are always tax-free
+    var isWalletMode = ($('.payment_mode').val() === 'wallet');
+    var currentGstEnabled = gstEnabled && !isWalletMode;
 
     $('.item-row').each(function() {
         var qty = parseFloat($(this).find('.row-qty').val()) || 0;
@@ -620,6 +629,30 @@ function calculateGrandTotal() {
         $('#split_amount_2').val(part2 >= 0 ? part2.toFixed(2) : '0.00');
         $('#split_low_warn').toggle(part1 > grandTotal || part1 < 0);
     }
+
+    // Outstanding Calculation
+    var finalPayable = Math.max(0, payable);
+    var amountPaidInput = $('#amount_paid').val();
+    
+    // Hide Amount Paid for Package and Split since they have their own logic
+    if ($('.payment_mode').val() === 'pkg' || $('.payment_mode').val() === 'split') {
+        $('#amount_paid_wrapper').hide();
+        $('#outstanding_summary_row').hide();
+    } else {
+        $('#amount_paid_wrapper').css('display', 'flex');
+        if (amountPaidInput !== '') {
+            var amountPaid = parseFloat(amountPaidInput) || 0;
+            var outstanding = finalPayable - amountPaid;
+            if (outstanding > 0) {
+                $('#outstanding_summary_row').css('display', 'flex');
+                $('#outstanding_summary_val').text('₹' + outstanding.toFixed(2));
+            } else {
+                $('#outstanding_summary_row').hide();
+            }
+        } else {
+            $('#outstanding_summary_row').hide();
+        }
+    }
 }
 
 // Events
@@ -663,51 +696,78 @@ $(document).ready(function() {
         // Clear any previous variation state
         tr.find('.row-variation-wrap').hide();
         tr.find('.row-var-select').html('<option value="">— Select Variation —</option>');
+        tr.find('.row-variation-pkg-label').remove();
         tr.find('.row-var-id').val('');
         tr.find('.row-price').prop('readonly', false).css('opacity', 1);
-        
+
         var serviceId = $(this).val();
-        if(serviceId != "0") {
+        if (serviceId != "0") {
             if (gstEnabled) {
                 var isProduct = String(serviceId).startsWith('p_');
                 tr.find('.row-gst').val(isProduct ? 0 : taxValue);
                 tr.find('.row-gst').siblings('span').text(isProduct ? '0%' : (taxValue + '%'));
             }
 
-            // Only fetch variations for real services (not products)
-            var isProduct2 = String(serviceId).startsWith('p_');
-            var numericId  = String(serviceId).replace(/^[sp]_/, '');
+            var isProduct2  = String(serviceId).startsWith('p_');
+            var numericId   = String(serviceId).replace(/^[sp]_/, '');
 
-            // Step 1: Get base price
+            // ── Package mode: lock price + auto-select variation ──────────────
+            var pkgMode = ($('.payment_mode').val() === 'pkg');
+            var cp_id   = String($('#pos_cp_id_hidden').val() || '').trim();
+
+            if (pkgMode && cp_id && !isProduct2 && window.activePackages) {
+                var pkgItem = window.activePackages.find(function(p) {
+                    return String(p.cp_id) === cp_id && String(p.service_id) === numericId;
+                });
+
+                if (pkgItem) {
+                    var pkgPrice = pkgItem.service_price;
+                    tr.find('.row-price').val(pkgPrice.toFixed(2)).prop('readonly', true).css('opacity', 0.85);
+                    tr.find('.row-price-org').val(pkgPrice.toFixed(2));
+
+                    // Show variation label if this price matched a variation
+                    if (pkgItem.matched_var_id && pkgItem.matched_var_name) {
+                        tr.find('.row-var-id').val(pkgItem.matched_var_id);
+                        // Render a read-only badge instead of a dropdown
+                        var varLabel = $('<div class="row-variation-pkg-label" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:12px;font-weight:600;border:1px solid #86efac;">' +
+                            '<i class="ph ph-tag" style="font-size:14px;"></i>' + pkgItem.matched_var_name +
+                            ' <span style="opacity:.7;font-weight:400;">(pkg price)</span>' +
+                        '</div>');
+                        tr.find('.row-variation-wrap').after(varLabel);
+                    }
+                    calculateGrandTotal();
+                    return; // skip the normal AJAX price/variation fetch
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────
+
+            // Normal mode: get base price via AJAX
             $.ajax({
                 type: "POST", url: "ajax/salon_ajax.php",
                 data: { method: 'service_price', service_id: serviceId },
                 success: function(res) {
-                    var priceStr = String(res).replace(/[^0-9.]/g, '');
-                    var price = parseFloat(priceStr) || 0;
+                    var price = parseFloat(String(res).replace(/[^0-9.]/g, '')) || 0;
                     tr.find('.row-price').val(price);
                     tr.find('.row-price-org').val(price);
                     calculateGrandTotal();
                 }
             });
 
-            // Step 2: Check for variations (services only)
-            if(!isProduct2) {
+            // Normal mode: check for variations (services only)
+            if (!isProduct2) {
                 $.ajax({
                     type: "POST", url: "ajax/salon_ajax.php",
                     data: { method: 'get_service_variations', service_id: numericId },
                     success: function(res) {
                         try {
                             var vars = JSON.parse(res);
-                            if(vars && vars.length > 0) {
-                                // Populate the variation picker
+                            if (vars && vars.length > 0) {
                                 var opts = '<option value="">— Select Variation —</option>';
                                 vars.forEach(function(v) {
                                     opts += '<option value="'+v.var_id+'" data-price="'+v.var_price+'">'+v.var_name+' (\u20b9'+parseFloat(v.var_price).toFixed(0)+')</option>';
                                 });
                                 tr.find('.row-var-select').html(opts);
                                 tr.find('.row-variation-wrap').show();
-                                // Lock price until variation is chosen
                                 tr.find('.row-price').val('').prop('readonly', true).css('opacity', 0.5);
                                 tr.find('.row-price-org').val('');
                                 calculateGrandTotal();
@@ -1064,11 +1124,21 @@ $(document).ready(function() {
             if(<?= $no_discount_with_wallet ?>) {
                 $('#discount').val('').prop('disabled',true);
                 $('#discount_mode').prop('disabled',true);
-                calculateGrandTotal();
                 if(!$('#wallet_discount_note').length) {
                     $('<small id="wallet_discount_note" style="color:#d97706;font-size:12px;margin-top:4px;display:block;"><i class="ph ph-info"></i> Discounts are disabled when paying via Wallet.</small>').insertAfter('#discount');
                 }
             }
+
+            // Hide Tax column header and all tax cells — wallet is tax-free
+            <?php if(isset($gst_enable) && $gst_enable != "no"): ?>
+            $('#item_table thead th.tax-col-header').hide();
+            $('#item_table tbody td.tax-col-cell').hide();
+            $('.tax-summary-row').hide();
+            if(!$('#wallet_tax_note').length) {
+                $('<small id="wallet_tax_note" style="color:#059669;font-size:12px;margin-top:4px;display:block;"><i class="ph ph-check-circle"></i> Tax is waived for Wallet payments.</small>').insertAfter('.payment_mode');
+            }
+            <?php endif; ?>
+
             // Check if balance covers the total
             var wallet = parseFloat($('#wallet_avail_balance').text().replace('₹','').replace(/,/g,'')) || 0;
             var total = parseFloat($('#grandTotal').text().replace('₹','').replace(/,/g,'')) || 0;
@@ -1077,7 +1147,15 @@ $(document).ready(function() {
             $('#discount').prop('disabled',false);
             $('#discount_mode').prop('disabled',false);
             $('#wallet_discount_note').remove();
-            
+
+            // Restore Tax column and summary row when switching away from wallet
+            <?php if(isset($gst_enable) && $gst_enable != "no"): ?>
+            $('#item_table thead th.tax-col-header').show();
+            $('#item_table tbody td.tax-col-cell').show();
+            $('.tax-summary-row').show();
+            $('#wallet_tax_note').remove();
+            <?php endif; ?>
+
             // Reset applied wallet if mode is not wallet
             $('#wallet_applied_amount').val(0);
         }
@@ -1174,15 +1252,22 @@ $(document).ready(function() {
         if(!cp_id) { $('#pos_pkg_services').html(''); return; }
         // Show services in selected package
         var html = '<div style="padding:8px 0;">';
-        if(window.activePackages) {
+        if (window.activePackages) {
             var services = window.activePackages.filter(function(p) { return p.cp_id == cp_id; });
-            if(services.length) {
+            if (services.length) {
                 html += '<div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:6px;">Sessions available in this package:</div>';
                 services.forEach(function(s) {
-                    html += '<div style="display:flex;justify-content:space-between;padding:5px 8px;background:rgba(255,255,255,.6);border-radius:6px;margin-bottom:4px;font-size:13px;">' +
-                        '<span>' + s.service_name + '</span>' +
-                        '<span style="font-weight:700;color:#059669;">' + s.remaining + ' session' + (s.remaining !== 1 ? 's' : '') + ' left</span>' +
-                        '</div>';
+                    var varTag = s.matched_var_name
+                        ? ' <span style="background:#dcfce7;color:#15803d;font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;border:1px solid #86efac;margin-left:4px;">'
+                          + s.matched_var_name + '</span>'
+                        : '';
+                    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:rgba(255,255,255,.7);border-radius:8px;margin-bottom:5px;font-size:13px;border:1px solid #fed7aa;">' +
+                        '<span style="font-weight:500;">' + s.service_name + varTag + '</span>' +
+                        '<div style="text-align:right;">' +
+                            '<span style="font-weight:700;color:#059669;">' + s.remaining + ' session' + (s.remaining !== 1 ? 's' : '') + ' left</span>' +
+                            '<span style="display:block;font-size:11px;color:#92400e;">₹' + parseFloat(s.service_price).toFixed(0) + ' / session</span>' +
+                        '</div>' +
+                    '</div>';
                 });
             } else {
                 html += '<p style="color:var(--text-muted);font-size:13px;">No sessions found.</p>';
