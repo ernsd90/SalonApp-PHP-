@@ -308,34 +308,6 @@ $salon_id = get_session_data('salon_id');
         </div>
     </div>
 
-    <!-- Performance Table & AI Insights -->
-    <div class="charts-grid">
-        <div class="chart-card" style="overflow-x:auto;">
-            <h3 class="chart-title">Staff Performance Metrics</h3>
-            <table class="metrics-table">
-                <thead>
-                    <tr>
-                        <th>Staff Name</th>
-                        <th>Completed Services</th>
-                        <th>Total Revenue</th>
-                        <th>Avg. Billing Value</th>
-                        <th>Avg. Per Service</th>
-                    </tr>
-                </thead>
-                <tbody id="metrics_tbody">
-                    <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="chart-card">
-            <h3 class="chart-title"><i class="ph-duotone ph-sparkle" style="color:#a855f7;"></i> AI & Smart Insights</h3>
-            <div class="insights-grid" id="insights_container" style="display:flex; flex-direction:column; gap:12px;">
-                <!-- Insights rendered here -->
-                <div style="padding:20px;text-align:center;color:#64748b;">Analyzing data...</div>
-            </div>
-        </div>
-    </div>
-
     <!-- Comprehensive Staff Report -->
     <div class="charts-grid" style="grid-template-columns: 1fr;">
         <div class="chart-card" style="overflow-x:auto;">
@@ -343,14 +315,14 @@ $salon_id = get_session_data('salon_id');
             <table class="metrics-table" style="white-space: nowrap;">
                 <thead>
                     <tr>
-                        <th>Stylist</th>
-                        <th style="text-align:center;">Clients</th>
-                        <th style="text-align:right;">Services</th>
-                        <th style="text-align:center;">Service (Redemp.)</th>
-                        <th style="text-align:right;">Package Sold</th>
-                        <th style="text-align:right;">Membership Sold</th>
-                        <th style="text-align:right;">Products Sold</th>
-                        <th style="text-align:right; font-weight:800; color:#1e293b;">Total Generated</th>
+                        <th onclick="sortComprehensive('staff_name')" style="cursor:pointer; user-select:none;">Stylist <i class="ph ph-caret-up-down" id="sort_staff_name" style="font-size:12px;color:#94a3b8;margin-left:4px;"></i></th>
+                        <th onclick="sortComprehensive('clients')" style="text-align:center; cursor:pointer; user-select:none;">Clients <i class="ph ph-caret-up-down" id="sort_clients" style="font-size:12px;color:#94a3b8;margin-left:4px;"></i></th>
+                        <th onclick="sortComprehensive('services_rev')" style="text-align:right; cursor:pointer; user-select:none;">Services <i class="ph ph-caret-up-down" id="sort_services_rev" style="font-size:12px;color:#94a3b8;margin-left:4px;"></i></th>
+                        <th onclick="sortComprehensive('redemptions')" style="text-align:right; cursor:pointer; user-select:none;">Service (Redemp.) <i class="ph ph-caret-up-down" id="sort_redemptions" style="font-size:12px;color:#94a3b8;margin-left:4px;"></i></th>
+                        <th onclick="sortComprehensive('packages_sold')" style="text-align:right; cursor:pointer; user-select:none;">Package Sold <i class="ph ph-caret-up-down" id="sort_packages_sold" style="font-size:12px;color:#94a3b8;margin-left:4px;"></i></th>
+                        <th onclick="sortComprehensive('memberships_sold')" style="text-align:right; cursor:pointer; user-select:none;">Membership Sold <i class="ph ph-caret-up-down" id="sort_memberships_sold" style="font-size:12px;color:#94a3b8;margin-left:4px;"></i></th>
+                        <th onclick="sortComprehensive('products_sold')" style="text-align:right; cursor:pointer; user-select:none;">Products Sold <i class="ph ph-caret-up-down" id="sort_products_sold" style="font-size:12px;color:#94a3b8;margin-left:4px;"></i></th>
+                        <th onclick="sortComprehensive('total_generated')" style="text-align:right; font-weight:800; color:#1e293b; cursor:pointer; user-select:none;">Total Generated <i class="ph ph-caret-up-down" id="sort_total_generated" style="font-size:12px;color:#94a3b8;margin-left:4px;"></i></th>
                     </tr>
                 </thead>
                 <tbody id="comprehensive_tbody">
@@ -384,11 +356,43 @@ $salon_id = get_session_data('salon_id');
         </div>
     </div>
 
+    <!-- Performance Table & AI Insights -->
+    <div class="charts-grid">
+        <div class="chart-card" style="overflow-x:auto;">
+            <h3 class="chart-title">Staff Performance Metrics</h3>
+            <table class="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Staff Name</th>
+                        <th>Completed Services</th>
+                        <th>Total Revenue</th>
+                        <th>Avg. Billing Value</th>
+                        <th>Avg. Per Service</th>
+                    </tr>
+                </thead>
+                <tbody id="metrics_tbody">
+                    <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="chart-card">
+            <h3 class="chart-title"><i class="ph-duotone ph-sparkle" style="color:#a855f7;"></i> AI & Smart Insights</h3>
+            <div class="insights-grid" id="insights_container" style="display:flex; flex-direction:column; gap:12px;">
+                <!-- Insights rendered here -->
+                <div style="padding:20px;text-align:center;color:#64748b;">Analyzing data...</div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
     let revenueChartInst = null;
     let servicesChartInst = null;
+
+    let comprehensiveData = [];
+    let currentSortField = 'total_generated';
+    let currentSortOrder = 'desc';
 
     $(document).ready(function() {
         loadDashboard();
@@ -468,15 +472,49 @@ $salon_id = get_session_data('salon_id');
                 // Pre-calculate staff totals
                 let staffTotals = {};
                 data.breakdown.forEach(b => {
-                    if(!staffTotals[b.staff_name]) staffTotals[b.staff_name] = {times: 0, rev: 0};
-                    staffTotals[b.staff_name].times += parseInt(b.total_count);
-                    staffTotals[b.staff_name].rev += parseFloat(b.total_revenue);
+                    if(!staffTotals[b.staff_name]) {
+                        staffTotals[b.staff_name] = {
+                            times: 0, 
+                            rev: 0,
+                            redemp_count: 0,
+                            redemp_revenue: 0,
+                            other_count: 0,
+                            other_revenue: 0
+                        };
+                    }
+                    staffTotals[b.staff_name].times += parseInt(b.total_count) || 0;
+                    staffTotals[b.staff_name].rev += parseFloat(b.total_revenue) || 0;
+                    staffTotals[b.staff_name].redemp_count += parseInt(b.redemp_count) || 0;
+                    staffTotals[b.staff_name].redemp_revenue += parseFloat(b.redemp_revenue) || 0;
+                    staffTotals[b.staff_name].other_count += parseInt(b.other_count) || 0;
+                    staffTotals[b.staff_name].other_revenue += parseFloat(b.other_revenue) || 0;
                 });
 
                 let currentStaff = '';
                 let staffIndex = 0;
-                data.breakdown.forEach(b => {
+                data.breakdown.forEach((b, idx) => {
                     if (b.staff_name !== currentStaff) {
+                        if (currentStaff !== '') {
+                            // Print previous staff grand total row!
+                            let prevSt = staffTotals[currentStaff];
+                            html += `<tr class="breakdown-row staff-${staffIndex}" style="display:none; background:#ecfdf5; font-weight:800;">
+                                <td style="border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1;"></td>
+                                <td style="color:#0f172a; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1; text-transform:uppercase; font-size:12px;">GRAND TOTAL</td>
+                                <td style="text-align:center; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1;">
+                                    <span style="background:#cbd5e1; color:#0f172a; padding:4px 10px; border-radius:8px;">${prevSt.redemp_count}x</span>
+                                </td>
+                                <td style="color:#059669; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1; text-align:right;">₹${prevSt.redemp_revenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                <td style="text-align:center; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1;">
+                                    <span style="background:#cbd5e1; color:#0f172a; padding:4px 10px; border-radius:8px;">${prevSt.other_count}x</span>
+                                </td>
+                                <td style="color:#059669; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1; text-align:right;">₹${prevSt.other_revenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                <td style="text-align:center; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1;">
+                                    <span style="background:#0f172a; color:white; padding:4px 10px; border-radius:8px;">${prevSt.times}x</span>
+                                </td>
+                                <td style="color:#059669; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1; text-align:right; background:#d1fae5;">₹${prevSt.rev.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            </tr>`;
+                        }
+
                         staffIndex++;
                         let st = staffTotals[b.staff_name];
                         html += `<tr class="staff-header" data-target="staff-${staffIndex}" style="background:#f8fafc; cursor:pointer;">
@@ -490,7 +528,7 @@ $salon_id = get_session_data('salon_id');
                                     </div>
                                     <div style="display:flex; align-items:center; gap:16px;">
                                         <span style="font-size:13px; font-weight:600; color:#475569;">Total Services: <span style="color:#0f172a; font-weight:800;">${st.times}</span></span>
-                                        <span style="font-size:13px; font-weight:600; color:#475569;">Total Rev: <span style="color:#059669; font-weight:800;">₹${st.rev.toLocaleString()}</span></span>
+                                        <span style="font-size:13px; font-weight:600; color:#475569;">Total Rev: <span style="color:#059669; font-weight:800;">₹${st.rev.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></span>
                                         <i class="ph ph-caret-down toggle-icon" style="color:#64748b; font-size:16px;"></i>
                                     </div>
                                 </div>
@@ -508,21 +546,42 @@ $salon_id = get_session_data('salon_id');
                             <span style="background:#f1f5f9; padding:4px 10px; border-radius:8px; font-weight:700; font-size:13px;">${b.redemp_count}x</span>
                         </td>
                         <td style="color:#059669; font-weight:700; font-size:14px; border-bottom:1px dashed #e2e8f0; text-align:right;">
-                            ₹${parseFloat(b.redemp_revenue).toLocaleString()}
+                            ₹${parseFloat(b.redemp_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </td>
                         <td style="border-bottom:1px dashed #e2e8f0; text-align:center;">
                             <span style="background:#f8fafc; padding:4px 10px; border-radius:8px; font-weight:700; font-size:13px;">${b.other_count}x</span>
                         </td>
                         <td style="color:#059669; font-weight:700; font-size:14px; border-bottom:1px dashed #e2e8f0; text-align:right;">
-                            ₹${parseFloat(b.other_revenue).toLocaleString()}
+                            ₹${parseFloat(b.other_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </td>
                         <td style="border-bottom:1px dashed #e2e8f0; text-align:center;">
                             <span style="background:#e2e8f0; color:#0f172a; padding:4px 10px; border-radius:8px; font-weight:800; font-size:13px;">${b.total_count}x</span>
                         </td>
                         <td style="color:#059669; font-weight:800; font-size:15px; border-bottom:1px dashed #e2e8f0; text-align:right; background:#f8fafc;">
-                            ₹${parseFloat(b.total_revenue).toLocaleString()}
+                            ₹${parseFloat(b.total_revenue).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </td>
                     </tr>`;
+
+                    // If it is the last item, print its grand total row too!
+                    if (idx === data.breakdown.length - 1) {
+                        let finalSt = staffTotals[b.staff_name];
+                        html += `<tr class="breakdown-row staff-${staffIndex}" style="display:none; background:#ecfdf5; font-weight:800;">
+                            <td style="border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1;"></td>
+                            <td style="color:#0f172a; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1; text-transform:uppercase; font-size:12px;">GRAND TOTAL</td>
+                            <td style="text-align:center; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1;">
+                                <span style="background:#cbd5e1; color:#0f172a; padding:4px 10px; border-radius:8px;">${finalSt.redemp_count}x</span>
+                            </td>
+                            <td style="color:#059669; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1; text-align:right;">₹${finalSt.redemp_revenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td style="text-align:center; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1;">
+                                <span style="background:#cbd5e1; color:#0f172a; padding:4px 10px; border-radius:8px;">${finalSt.other_count}x</span>
+                            </td>
+                            <td style="color:#059669; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1; text-align:right;">₹${finalSt.other_revenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td style="text-align:center; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1;">
+                                <span style="background:#0f172a; color:white; padding:4px 10px; border-radius:8px;">${finalSt.times}x</span>
+                            </td>
+                            <td style="color:#059669; border-top:1px solid #cbd5e1; border-bottom:2px solid #cbd5e1; text-align:right; background:#d1fae5;">₹${finalSt.rev.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        </tr>`;
+                    }
                 });
             } else {
                 html = '<tr><td colspan="8" style="text-align:center;">No data available.</td></tr>';
@@ -557,46 +616,95 @@ $salon_id = get_session_data('salon_id');
         filters.method = 'get_comprehensive_report';
         $.post('ajax/staff_analytics_ajax.php', filters, function(res) {
             let data = JSON.parse(res);
-            let html = '';
-            if(data.data && data.data.length > 0) {
-                let tClients = 0, tServices = 0, tRedemptions = 0, tPkgs = 0, tMems = 0, tProds = 0, tGen = 0;
-                
-                data.data.forEach(m => {
-                    tClients += parseInt(m.clients) || 0;
-                    tServices += parseFloat(m.services_rev) || 0;
-                    tRedemptions += parseInt(m.redemptions) || 0;
-                    tPkgs += parseFloat(m.packages_sold) || 0;
-                    tMems += parseFloat(m.memberships_sold) || 0;
-                    tProds += parseFloat(m.products_sold) || 0;
-                    tGen += parseFloat(m.total_generated) || 0;
-
-                    html += `<tr style="background:#fff;">
-                        <td style="font-weight:600;color:#1e293b;">${m.staff_name}</td>
-                        <td style="text-align:center;"><span style="background:#f1f5f9; padding:2px 8px; border-radius:12px; font-weight:600;">${m.clients}</span></td>
-                        <td style="text-align:right;">₹${parseFloat(m.services_rev).toLocaleString()}</td>
-                        <td style="text-align:center;">${m.redemptions}</td>
-                        <td style="text-align:right;">₹${parseFloat(m.packages_sold).toLocaleString()}</td>
-                        <td style="text-align:right;">₹${parseFloat(m.memberships_sold).toLocaleString()}</td>
-                        <td style="text-align:right;">₹${parseFloat(m.products_sold).toLocaleString()}</td>
-                        <td style="text-align:right; color:#059669; font-weight:800; font-size:15px; background:#ecfdf5;">₹${parseFloat(m.total_generated).toLocaleString()}</td>
-                    </tr>`;
-                });
-
-                html += `<tr style="background:var(--primary-gradient); color:white;">
-                    <td style="font-weight:800; font-size:14px; padding:12px;">GRAND TOTAL</td>
-                    <td style="text-align:center; font-weight:800; font-size:14px;">${tClients}</td>
-                    <td style="text-align:right; font-weight:800; font-size:14px;">₹${tServices.toLocaleString()}</td>
-                    <td style="text-align:center; font-weight:800; font-size:14px;">${tRedemptions}</td>
-                    <td style="text-align:right; font-weight:800; font-size:14px;">₹${tPkgs.toLocaleString()}</td>
-                    <td style="text-align:right; font-weight:800; font-size:14px;">₹${tMems.toLocaleString()}</td>
-                    <td style="text-align:right; font-weight:800; font-size:14px;">₹${tProds.toLocaleString()}</td>
-                    <td style="text-align:right; font-weight:900; font-size:16px;">₹${tGen.toLocaleString()}</td>
-                </tr>`;
-            } else {
-                html = '<tr><td colspan="8" style="text-align:center;">No data available for selected filters.</td></tr>';
-            }
-            $('#comprehensive_tbody').html(html);
+            comprehensiveData = data.data || [];
+            
+            // Sort by current selection or default total_generated desc on initial load
+            comprehensiveData.sort((a, b) => {
+                let numA = parseFloat(a[currentSortField]) || 0;
+                let numB = parseFloat(b[currentSortField]) || 0;
+                return currentSortOrder === 'asc' ? numA - numB : numB - numA;
+            });
+            
+            renderComprehensiveTable();
         });
+    }
+
+    function renderComprehensiveTable() {
+        let html = '';
+        
+        // Reset and apply sort icons
+        $('.metrics-table th i').removeClass('ph-caret-up ph-caret-down').addClass('ph-caret-up-down').css('color', '#cbd5e1');
+        if (currentSortField) {
+            let iconClass = currentSortOrder === 'asc' ? 'ph-caret-up' : 'ph-caret-down';
+            $(`#sort_${currentSortField}`).removeClass('ph-caret-up-down').addClass(iconClass).css('color', '#4f46e5');
+        }
+
+        if(comprehensiveData && comprehensiveData.length > 0) {
+            let tClients = 0, tServices = 0, tRedemptions = 0, tPkgs = 0, tMems = 0, tProds = 0, tGen = 0;
+            
+            comprehensiveData.forEach(m => {
+                tClients += parseInt(m.clients) || 0;
+                tServices += parseFloat(m.services_rev) || 0;
+                tRedemptions += parseFloat(m.redemptions) || 0;
+                tPkgs += parseFloat(m.packages_sold) || 0;
+                tMems += parseFloat(m.memberships_sold) || 0;
+                tProds += parseFloat(m.products_sold) || 0;
+                tGen += parseFloat(m.total_generated) || 0;
+
+                html += `<tr style="background:#fff;">
+                    <td style="font-weight:600;color:#1e293b;">${m.staff_name}</td>
+                    <td style="text-align:center;"><span style="background:#f1f5f9; padding:2px 8px; border-radius:12px; font-weight:600;">${m.clients}</span></td>
+                    <td style="text-align:right;">₹${parseFloat(m.services_rev).toLocaleString()}</td>
+                    <td style="text-align:right;">₹${parseFloat(m.redemptions).toLocaleString()}</td>
+                    <td style="text-align:right;">₹${parseFloat(m.packages_sold).toLocaleString()}</td>
+                    <td style="text-align:right;">₹${parseFloat(m.memberships_sold).toLocaleString()}</td>
+                    <td style="text-align:right;">₹${parseFloat(m.products_sold).toLocaleString()}</td>
+                    <td style="text-align:right; color:#059669; font-weight:800; font-size:15px; background:#ecfdf5;">₹${parseFloat(m.total_generated).toLocaleString()}</td>
+                </tr>`;
+            });
+
+            html += `<tr style="background:var(--primary-gradient); color:white;">
+                <td style="font-weight:800; font-size:14px; padding:12px;">GRAND TOTAL</td>
+                <td style="text-align:center; font-weight:800; font-size:14px;">${tClients}</td>
+                <td style="text-align:right; font-weight:800; font-size:14px;">₹${tServices.toLocaleString()}</td>
+                <td style="text-align:right; font-weight:800; font-size:14px;">₹${tRedemptions.toLocaleString()}</td>
+                <td style="text-align:right; font-weight:800; font-size:14px;">₹${tPkgs.toLocaleString()}</td>
+                <td style="text-align:right; font-weight:800; font-size:14px;">₹${tMems.toLocaleString()}</td>
+                <td style="text-align:right; font-weight:800; font-size:14px;">₹${tProds.toLocaleString()}</td>
+                <td style="text-align:right; font-weight:900; font-size:16px;">₹${tGen.toLocaleString()}</td>
+            </tr>`;
+        } else {
+            html = '<tr><td colspan="8" style="text-align:center;">No data available for selected filters.</td></tr>';
+        }
+        $('#comprehensive_tbody').html(html);
+    }
+
+    function sortComprehensive(field) {
+        if (currentSortField === field) {
+            currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSortField = field;
+            currentSortOrder = 'desc';
+        }
+
+        comprehensiveData.sort((a, b) => {
+            let valA = a[field];
+            let valB = b[field];
+
+            if (field === 'staff_name') {
+                let strA = String(valA || '');
+                let strB = String(valB || '');
+                return currentSortOrder === 'asc' 
+                    ? strA.localeCompare(strB) 
+                    : strB.localeCompare(strA);
+            } else {
+                let numA = parseFloat(valA) || 0;
+                let numB = parseFloat(valB) || 0;
+                return currentSortOrder === 'asc' ? numA - numB : numB - numA;
+            }
+        });
+
+        renderComprehensiveTable();
     }
 
     function renderRevenueChart(revenueData) {

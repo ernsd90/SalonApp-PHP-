@@ -179,7 +179,7 @@ function summary_sale_monthly($fromdate,$todate,$refrence_by){
     $mysql = "SELECT cash_discount,month_discount FROM `hr_salon_cashdiscount` where salon_id='".$salon_id."' ".$discountwhere;
     $alldiscount  = select_array($mysql);
 
-    extract(select_row("SELECT sum(i.grand_total) as grand_total, sum(i.discount) as discount_total FROM `hr_invoice` as i where i.salon_id='".$salon_id."' and i.delete_bill!='1'  and i.payment_mode!='pkg' and i.payment_mode!='wallet' ".$date_where." "));
+    extract(select_row("SELECT sum(i.grand_total - i.outstanding) as grand_total, sum(i.discount) as discount_total FROM `hr_invoice` as i where i.salon_id='".$salon_id."' and i.delete_bill!='1'  and i.payment_mode!='pkg' and i.payment_mode!='wallet' ".$date_where." "));
 
     $mydata = (select_row("SELECT sum(p.grand_total) as total_cash FROM `hr_invoice` as i JOIN  `hr_invoice_payment` as p on p.invoice_id=i.invoice_id where i.salon_id='".$salon_id."' and delete_bill!='1' and p.payment_mode LIKE 'cash' ".$date_where." "));
     $total_cash = $mydata['total_cash'];
@@ -211,7 +211,7 @@ function summary_sale_monthly($fromdate,$todate,$refrence_by){
     // --- Total Services (Invoice Type 0 or filtering out Packages/Memberships/Products) ---
     $service_res = select_row("
         SELECT SUM(
-            (sv.service_total_wth_gst / NULLIF((SELECT SUM(service_total_wth_gst) FROM hr_invoice_service WHERE invoice_id=i.invoice_id), 0)) * i.grand_total
+            (sv.service_total_wth_gst / NULLIF((SELECT SUM(service_total_wth_gst) FROM hr_invoice_service WHERE invoice_id=i.invoice_id), 0)) * (i.grand_total - i.outstanding)
         ) as st 
         FROM hr_invoice i 
         JOIN hr_invoice_service sv ON sv.invoice_id=i.invoice_id 
@@ -250,7 +250,7 @@ function summary_sale_monthly($fromdate,$todate,$refrence_by){
     // --- Total Products (Invoice Type 2 or filtering by Product%) ---
     $product_res = select_row("
         SELECT SUM(
-            (sv.service_total_wth_gst / NULLIF((SELECT SUM(service_total_wth_gst) FROM hr_invoice_service WHERE invoice_id=i.invoice_id), 0)) * i.grand_total
+            (sv.service_total_wth_gst / NULLIF((SELECT SUM(service_total_wth_gst) FROM hr_invoice_service WHERE invoice_id=i.invoice_id), 0)) * (i.grand_total - i.outstanding)
         ) as pt 
         FROM hr_invoice i 
         JOIN hr_invoice_service sv ON sv.invoice_id=i.invoice_id 
@@ -286,7 +286,7 @@ function summary_sale_monthly($fromdate,$todate,$refrence_by){
     // Note: We need to pull the service_total_wth_gst proportion since Package sales don't strictly use invoice_type=1
     $mem_pkg_res = select_row("
         SELECT SUM(
-            (sv.service_total_wth_gst / NULLIF((SELECT SUM(service_total_wth_gst) FROM hr_invoice_service WHERE invoice_id=i.invoice_id), 0)) * i.grand_total
+            (sv.service_total_wth_gst / NULLIF((SELECT SUM(service_total_wth_gst) FROM hr_invoice_service WHERE invoice_id=i.invoice_id), 0)) * (i.grand_total - i.outstanding)
         ) as mt 
         FROM hr_invoice i 
         JOIN hr_invoice_service sv ON sv.invoice_id=i.invoice_id 
@@ -1113,5 +1113,165 @@ function get_pnl_report() {
         'total_expense' => $total_expense,
         'net_profit' => $net_profit
     ];
+}
+
+function get_outstanding_report() {
+    global $conn, $user_id, $salon_id;
+
+    extract($_REQUEST);
+
+    if (isset($start)) { $page  = $start; } else { $page=1; };
+    $start_from = $start;
+
+    $where = "";
+
+    if(isset($search['value']) && $search['value'] != ''){
+        $search_value = $search['value'];
+        $where .= " AND (cust_name LIKE '%".$search_value."%' OR cust_mob LIKE '%".$search_value."%' OR invoice_id LIKE '%".$search_value."%')";
+    }
+
+    if($fromdate != '' && $todate != ''){
+        $fromdate = date("Y-m-d",strtotime($fromdate));
+        $todate = date("Y-m-d",strtotime($todate));
+        $where .= " AND (invoice_date BETWEEN '".$fromdate."' AND '".$todate."')";
+    } else if($fromdate != '' && $todate == ''){
+        $fromdate = date("Y-m-d",strtotime($fromdate));
+        $where .= " AND (invoice_date = '".$fromdate."')";
+    }
+
+    $base_query = "
+    SELECT * FROM (
+        SELECT 
+            'Invoice' AS type,
+            i.invoice_number AS invoice_id,
+            DATE(i.invoice_date) AS invoice_date,
+            i.cust_name,
+            i.cust_mob,
+            i.grand_total,
+            i.outstanding,
+            DATEDIFF(CURDATE(), i.invoice_date) AS days_pending
+        FROM hr_invoice i
+        WHERE i.salon_id='$salon_id' AND i.outstanding >= 10 AND i.delete_bill!='1'
+        
+        UNION ALL
+        
+        SELECT 
+            'Membership' AS type,
+            CAST(m.cm_id AS CHAR) AS invoice_id,
+            DATE(m.created_at) AS invoice_date,
+            c.cust_name,
+            c.cust_mobile AS cust_mob,
+            m.total_price AS grand_total,
+            m.remaining_amount AS outstanding,
+            DATEDIFF(CURDATE(), DATE(m.created_at)) AS days_pending
+        FROM hr_customer_membership m
+        LEFT JOIN hr_customer c ON m.cust_id = c.cust_id
+        WHERE m.salon_id='$salon_id' AND m.remaining_amount >= 10 AND m.status != 'refunded'
+        
+        UNION ALL
+        
+        SELECT 
+            'Package' AS type,
+            CAST(p.cp_id AS CHAR) AS invoice_id,
+            DATE(p.created_at) AS invoice_date,
+            c.cust_name,
+            c.cust_mobile AS cust_mob,
+            (p.purchase_price + p.gst_amount) AS grand_total,
+            p.remaining_amount AS outstanding,
+            DATEDIFF(CURDATE(), DATE(p.created_at)) AS days_pending
+        FROM hr_customer_packages p
+        LEFT JOIN hr_customer c ON p.cust_id = c.cust_id
+        WHERE p.salon_id='$salon_id' AND p.remaining_amount >= 10 AND p.status != 'refunded'
+    ) AS combined_data
+    WHERE 1=1 " . $where;
+    
+    $total_records = num_rows($base_query);
+    
+    // Ordering
+    $order_by = "days_pending DESC";
+    if(isset($_REQUEST['order']) && isset($_REQUEST['order'][0])) {
+        $col_idx = $_REQUEST['order'][0]['column'];
+        $dir = $_REQUEST['order'][0]['dir'] === 'asc' ? 'ASC' : 'DESC';
+        switch ($col_idx) {
+            case 0: $order_by = "type " . $dir; break;
+            case 1: $order_by = "invoice_id " . $dir; break;
+            case 2: $order_by = "invoice_date " . $dir; break;
+            case 3: $order_by = "cust_name " . $dir; break;
+            case 4: $order_by = "grand_total " . $dir; break;
+            case 5: $order_by = "(grand_total - outstanding) " . $dir; break;
+            case 6: $order_by = "outstanding " . $dir; break;
+            case 7: $order_by = "days_pending " . $dir; break;
+            default: $order_by = "days_pending DESC"; break;
+        }
+    }
+    
+    $length = isset($length) && $length > 0 ? $length : 10;
+    $final_query = $base_query . " ORDER BY " . $order_by . " LIMIT $start_from, $length";
+    $record = select_array($final_query);
+
+    $userdata = [];
+    if($record) {
+        foreach($record as $row) {
+            $data = [];
+            $data['type'] = $row['type'];
+            $data['invoice_id'] = $row['invoice_id'];
+            $data['invoice_date'] = date('d-m-Y', strtotime($row['invoice_date']));
+            $data['cust_name'] = $row['cust_name'];
+            $data['cust_mob'] = $row['cust_mob'];
+            $data['grand_total'] = number_format($row['grand_total'], 2);
+            $paid = $row['grand_total'] - $row['outstanding'];
+            $data['paid_amount'] = number_format($paid, 2);
+            $data['outstanding'] = number_format($row['outstanding'], 2);
+            $data['days_pending'] = $row['days_pending'];
+            $userdata[] = $data;
+        }
+    }
+
+    return [
+        'recordsTotal' => $total_records,
+        'recordsFiltered' => $total_records,
+        'data' => $userdata
+    ];
+}
+
+function pay_outstanding_invoice() {
+    global $conn, $user_id, $salon_id;
+    extract($_REQUEST);
+
+    if ($type === 'Invoice') {
+        // Here, $invoice_id from the frontend is actually the `invoice_number` for display
+        $inv = select_row("SELECT * FROM hr_invoice WHERE invoice_number='$invoice_id' AND salon_id='$salon_id'");
+        if(!$inv) return ['error'=>1, 'msg'=>'Invoice not found.'];
+        
+        $pay_amount = floatval($pay_amount);
+        $outstanding = floatval($inv['outstanding']);
+        
+        if($pay_amount > $outstanding) return ['error'=>1, 'msg'=>'Amount exceeds outstanding balance.'];
+        if($pay_amount <= 0) return ['error'=>1, 'msg'=>'Invalid amount.'];
+        
+        $new_outstanding = $outstanding - $pay_amount;
+        $real_id = $inv['invoice_id'];
+        $date_now = date("Y-m-d H:i:s");
+        
+        // Insert payment log
+        mysqli_query($conn, "INSERT INTO `hr_invoice_payment` SET salon_id='$salon_id', grand_total='$pay_amount', `payment_mode`='$payment_mode', `invoice_id`='$real_id', created_date='$date_now'");
+        
+        // Update Invoice outstanding
+        mysqli_query($conn, "UPDATE hr_invoice SET outstanding='$new_outstanding' WHERE invoice_id='$real_id'");
+        
+        // Update customer outstanding
+        $cust_mob = $inv['cust_mob'];
+        if($cust_mob) {
+            $cust = select_row("SELECT cust_id, cust_outstanding FROM hr_customer WHERE cust_mobile='$cust_mob' AND salon_id='$salon_id'");
+            if($cust) {
+                $new_cust_out = floatval($cust['cust_outstanding']) - $pay_amount;
+                mysqli_query($conn, "UPDATE hr_customer SET cust_outstanding='$new_cust_out' WHERE cust_id='".$cust['cust_id']."'");
+            }
+        }
+        
+        return ['error'=>0, 'msg'=>'Payment recorded.', 'print_url'=>'print_invoice.php?invoice_id='.$real_id];
+    } else {
+        return ['error'=>1, 'msg'=>'Paying Outstanding for Memberships/Packages directly via this popup is not yet supported. Please use the CRM manager.'];
+    }
 }
 ?>

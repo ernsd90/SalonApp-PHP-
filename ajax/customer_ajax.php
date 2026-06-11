@@ -181,37 +181,45 @@ function get_customer_details(){
 
 function get_customer(){
 
-     global $user_id, $salon_id;
+     global $user_id, $salon_id, $conn;
     
         extract($_REQUEST);
 
-        $fields = array('cust_id','cust_name','cust_mobile','cust_wallet','cust_outstanding');
+        $fields = array('c.cust_name', 'c.cust_wallet', 'c.cust_outstanding', 'last_visit', 'lifetime_spend', 'loyalty_points');
 
-        $order_field = $fields[$order[0]['column']];
+        $order_field = $fields[$order[0]['column']] ?? 'c.cust_name';
 
-        $order_dir = $order[0]['dir'];
+        $order_dir = $order[0]['dir'] ?? 'DESC';
 
         $where = "";
         if(isset($search['value']) && $search['value'] != ''){
-            $search_value = $search['value'];
-            $where = " and (cust_name LIKE '%".$search_value."%' or cust_mobile LIKE '%".$search_value."%')";
+            $search_value = mysqli_real_escape_string($conn, $search['value']);
+            $where = " and (c.cust_name LIKE '%".$search_value."%' or c.cust_mobile LIKE '%".$search_value."%')";
         }
         if(isset($search['value']) && $search['value'] == 'only_member'){
-            $where = " and cust_wallet > '0'";
+            $where = " and c.cust_wallet > '0'";
         }
         
         if (isset($start)) { $page  = $start; } else { $page=1; }; 
         $start_from = $start; 
 
-         $sql = "SELECT cust_id,cust_name,cust_mobile,cust_wallet,cust_outstanding FROM `hr_customer` where  `salon_id`='".$salon_id."'  $where  ORDER BY $order_field $order_dir";
+        // Get total count efficiently
+        $count_sql = "SELECT COUNT(c.cust_id) as total FROM `hr_customer` c WHERE c.salon_id='".$salon_id."' $where";
+        $count_res = select_row($count_sql);
+        $total_records = $count_res['total'] ?? 0;
 
-       $total_records = num_rows($sql);
-    
-		$sql .= " LIMIT $start_from, $length";
+        $sql = "SELECT c.cust_id, c.cust_name, c.cust_mobile, c.cust_wallet, c.cust_outstanding,
+                       (SELECT MAX(invoice_date) FROM hr_invoice WHERE cust_id = c.cust_id AND delete_bill = 0) as last_visit,
+                       (SELECT SUM(grand_total) FROM hr_invoice WHERE cust_id = c.cust_id AND delete_bill = 0) as lifetime_spend,
+                       (SELECT COALESCE(SUM(CASE WHEN type='earn' THEN points ELSE 0 END) - SUM(CASE WHEN type IN ('redeem','expire') THEN points ELSE 0 END), 0) FROM hr_customer_points WHERE cust_id = c.cust_id) as loyalty_points
+                FROM `hr_customer` c 
+                WHERE c.salon_id='".$salon_id."' $where 
+                ORDER BY $order_field $order_dir 
+                LIMIT $start_from, $length";
 	
         $user = select_array($sql);
-    $userdata = array();
-    $data = array();
+        $userdata = array();
+        $data = array();
         $i=0;
         foreach($user as $users){
             extract($users);
@@ -219,25 +227,45 @@ function get_customer(){
             $edit_btn = '';
             $view_btn = '';
             $wa_btn   = '';
+            $mem_btn  = '';
+            $followup_btn = '';
 
             if(check_user_permission("customer","edit",$user_id)){
-                $edit_btn = '<button type="button" class="btn btn-gradient-info btn modalButtonCommon" data-href="customer_edit.php?cust_id='.$cust_id.'">Edit</button>';
-                $view_btn = '<button type="button" class="btn btn-gradient-success btn modalButtonCommon" data-href="model/customer_details_view.php?cust_id='.$cust_id.'">View</button>';
+                $edit_btn = '<button type="button" class="btn btn-gradient-info btn modalButtonCommon" data-href="customer_edit.php?cust_id='.$cust_id.'" title="Edit Customer"><i class="ph ph-pencil-simple"></i></button>';
+                $view_btn = '<button type="button" class="btn btn-gradient-success btn modalButtonCommon" data-href="model/customer_details_view.php?cust_id='.$cust_id.'" title="View Details"><i class="ph ph-eye"></i></button>';
             }
+            
+            // Follow-up button — always show first
+            $followup_btn = '<button type="button" class="btn-followup modalButtonCommon" data-href="customer_followup.php?cust_id='.$cust_id.'" title="Log Follow-up"><i class="ph ph-phone-call"></i></button>';
+
+            // Membership button — always show
+            $mem_btn = '<button class="btn-view modalButtonCommon" data-href="customer_membership_view.php?cust_id=' . $cust_id . '" title="Membership & Wallet" style="background:#e0e7ff;color:#4f46e5;margin-right:4px;"><i class="ph ph-identification-badge"></i></button>';
+
             // WhatsApp button — always show
             $wa_msg = urlencode('Hello ' . $cust_name . ', we would love to see you at our salon again! 😊');
-            $wa_btn = '<a href="https://wa.me/91'.$cust_mobile.'?text='.$wa_msg.'" target="_blank" class="btn" style="background:#25D366;color:white;border:none;padding:6px 10px;border-radius:6px;font-size:13px;cursor:pointer;text-decoration:none;" title="WhatsApp"><i class="ph-fill ph-whatsapp-logo"></i></a>';
+            $wa_btn = '<a href="https://wa.me/91'.$cust_mobile.'?text='.$wa_msg.'" target="_blank" class="btn-wa" title="WhatsApp"><i class="ph-fill ph-whatsapp-logo"></i></a>';
 
             $userdata[$i] = $users;
             
-            // Fetch and set loyalty points balance
-            require_once dirname(__DIR__).'/loyalty_functions.php';
-            $loyalty_bal = get_customer_points_balance((int)$cust_id);
-            $userdata[$i]['loyalty_points'] = number_format($loyalty_bal, 0) . ' pts';
+            // Format Last Visit Days
+            if ($last_visit) {
+                $diff = time() - strtotime($last_visit);
+                $days = floor($diff / (60 * 60 * 24));
+                $days_text = ($days == 0) ? "Today" : (($days == 1) ? "1 day ago" : $days . " days ago");
+                $userdata[$i]['last_visit'] = '<div style="font-weight:600;">' . $days_text . '</div><div style="font-size:11px;color:var(--text-muted);">' . date('d M Y', strtotime($last_visit)) . '</div>';
+            } else {
+                $userdata[$i]['last_visit'] = '<span style="color:var(--text-muted);font-style:italic;">Never</span>';
+            }
 
-            $userdata[$i]['action'] = $wa_btn . ' ' . $edit_btn . ' ' . $view_btn;
+            // Format Lifetime Spend
+            $userdata[$i]['lifetime_spend'] = '<div style="font-weight:700;color:var(--text-main);">₹' . number_format((float)$lifetime_spend, 2) . '</div>';
+
+            // Format Loyalty Points Balance
+            $userdata[$i]['loyalty_points'] = number_format($loyalty_points, 0) . ' pts';
+
+            // Follow-up is first button in actions list, followed by Membership, WhatsApp, Edit, and View
+            $userdata[$i]['action'] = $followup_btn . ' ' . $mem_btn . ' ' . $wa_btn . ' ' . $edit_btn . ' ' . $view_btn;
            
-    
             $i++;
         }
     
@@ -310,6 +338,46 @@ function get_customer_history(){
         $data[] = $row;
     }
     return $data;
+}
+
+function save_followup() {
+    global $conn, $salon_id, $user_id;
+    extract($_POST);
+
+    $cust_id = (int)$cust_id;
+    $type = mysqli_real_escape_string($conn, $type ?? 'Call');
+    $notes = mysqli_real_escape_string($conn, $notes ?? '');
+    $response = mysqli_real_escape_string($conn, $response ?? '');
+    $status = mysqli_real_escape_string($conn, $status ?? 'Pending');
+    $followup_date = !empty($followup_date) ? "'" . mysqli_real_escape_string($conn, $followup_date) . "'" : 'NULL';
+
+    if (!$cust_id) {
+        return array("msg" => "Invalid Customer ID", "error" => 1);
+    }
+
+    $sql = "INSERT INTO `hr_customer_followups` (`salon_id`, `cust_id`, `user_id`, `type`, `notes`, `response`, `followup_date`, `status`)
+            VALUES ('$salon_id', '$cust_id', '$user_id', '$type', '$notes', '$response', $followup_date, '$status')";
+
+    $res = insert_query($sql);
+    if ($res) {
+        return array("msg" => "Follow-up logged successfully!", "error" => 0);
+    } else {
+        return array("msg" => "Failed to log follow-up.", "error" => 1);
+    }
+}
+
+function get_followup_history() {
+    global $conn, $salon_id;
+    $cust_id = (int)$_REQUEST['cust_id'];
+    
+    $sql = "SELECT f.*, u.user_name 
+            FROM hr_customer_followups f
+            LEFT JOIN hr_user u ON f.user_id = u.user_id
+            WHERE f.cust_id = '$cust_id' AND f.salon_id = '$salon_id'
+            ORDER BY f.created_at DESC";
+            
+    $history = select_array($sql);
+    return array("error" => 0, "data" => $history);
 }
 
 ?>

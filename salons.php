@@ -79,7 +79,23 @@ $(document).ready(function() {
         },
         "columns": [
             { "data": "salon_id" },
-            { "data": "salon_name" },
+            { 
+               "data": "salon_name",
+               "render": function(data, type, row) {
+                   var logoUrl = row.logo ? row.logo : '';
+                   var avatarHtml = '';
+                   if (logoUrl) {
+                       avatarHtml = '<img src="' + logoUrl + '" style="width: 48px; height: 36px; object-fit: contain; flex-shrink: 0;">';
+                   } else {
+                       var initial = data ? data.charAt(0).toUpperCase() : 'S';
+                       avatarHtml = '<div style="width: 36px; height: 36px; border-radius: 6px; background: var(--primary-light, #ede9fe); color: var(--primary, #4f46e5); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0;">' + initial + '</div>';
+                   }
+                   return '<div style="display: flex; align-items: center; gap: 12px;">' + 
+                              avatarHtml + 
+                              '<div style="font-weight: 600; color: var(--text-main); font-size: 14px;">' + data + '</div>' +
+                          '</div>';
+               }
+            },
             { 
                "data": "salon_address",
                "render": function(data) {
@@ -147,15 +163,21 @@ $(document).on('click', '.modalButtonCommon', function(e){
 
 $(document).on('submit', 'form.ajax-form', function(e){
     e.preventDefault();
-    var form = $(this);
-    var targetUrl = form.attr('data-action-url');
-    var submitBtn = form.find('button[type="submit"]');
+    var formEl = $(this)[0];
+    var targetUrl = $(this).attr('data-action-url');
+    var submitBtn = $(this).find('button[type="submit"]');
     var originalText = submitBtn.html();
     
     submitBtn.html('<i class="ph ph-spinner ph-spin"></i> Saving...').prop('disabled', true);
 
+    var formData = new FormData(formEl);
+
     $.ajax({
-        type: "POST", url: targetUrl, data: form.serialize(),
+        type: "POST", 
+        url: targetUrl, 
+        data: formData,
+        processData: false,
+        contentType: false,
         success: function(res) {
             var obj = JSON.parse(res);
             if (obj.error == 1) {

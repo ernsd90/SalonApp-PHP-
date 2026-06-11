@@ -369,4 +369,172 @@ function get_staff_repeat_clients() {
         'data' => $data
     ];
 }
+
+function get_followup_kpis() {
+    global $salon_id, $conn;
+    extract($_REQUEST);
+
+    $where = "f.salon_id = '".mysqli_real_escape_string($conn, $salon_id ?? '')."'";
+
+    if (!empty($from_date) && !empty($to_date)) {
+        $from = mysqli_real_escape_string($conn, $from_date . ' 00:00:00');
+        $to = mysqli_real_escape_string($conn, $to_date . ' 23:59:59');
+        $where .= " AND f.created_at >= '$from' AND f.created_at <= '$to'";
+    }
+
+    $sql = "SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN f.type = 'Call' THEN 1 ELSE 0 END) as calls,
+                SUM(CASE WHEN f.type = 'Message' THEN 1 ELSE 0 END) as messages,
+                SUM(CASE WHEN f.status = 'Converted' THEN 1 ELSE 0 END) as conversions
+            FROM hr_customer_followups f
+            WHERE $where";
+            
+    $stats = select_row($sql);
+    
+    return [
+        'error' => 0,
+        'total' => (int)($stats['total'] ?? 0),
+        'calls' => (int)($stats['calls'] ?? 0),
+        'messages' => (int)($stats['messages'] ?? 0),
+        'conversions' => (int)($stats['conversions'] ?? 0)
+    ];
+}
+
+function get_followup_logs() {
+    global $salon_id, $conn;
+    extract($_REQUEST);
+
+    $where = "f.salon_id = '".mysqli_real_escape_string($conn, $salon_id ?? '')."'";
+
+    if (!empty($from_date) && !empty($to_date)) {
+        $from = mysqli_real_escape_string($conn, $from_date . ' 00:00:00');
+        $to = mysqli_real_escape_string($conn, $to_date . ' 23:59:59');
+        $where .= " AND f.created_at >= '$from' AND f.created_at <= '$to'";
+    }
+
+    if (!empty($type)) {
+        $where .= " AND f.type = '".mysqli_real_escape_string($conn, $type)."'";
+    }
+
+    if (!empty($status)) {
+        $where .= " AND f.status = '".mysqli_real_escape_string($conn, $status)."'";
+    }
+
+    if (isset($search['value']) && $search['value'] != '') {
+        $search_val = mysqli_real_escape_string($conn, $search['value']);
+        $where .= " AND (c.cust_name LIKE '%$search_val%' OR c.cust_mobile LIKE '%$search_val%' OR f.notes LIKE '%$search_val%')";
+    }
+
+    // Determine ordering
+    $order_column_index = $order[0]['column'] ?? 0;
+    $order_dir = $order[0]['dir'] ?? 'DESC';
+
+    $order_map = [
+        0 => 'f.created_at',
+        1 => 'c.cust_name',
+        2 => 'c.cust_mobile',
+        3 => 'f.type',
+        4 => 'f.notes',
+        5 => 'f.status',
+        6 => 'f.followup_date',
+        7 => 'u.username'
+    ];
+    $order_by = $order_map[$order_column_index] ?? 'f.created_at';
+
+    if (!isset($start)) $start = 0;
+    if (!isset($length)) $length = 15;
+
+    // Get total count
+    $count_sql = "SELECT COUNT(*) as total 
+                  FROM hr_customer_followups f 
+                  JOIN hr_customer c ON f.cust_id = c.cust_id
+                  WHERE $where";
+    $count_res = select_row($count_sql);
+    $total_records = $count_res['total'] ?? 0;
+
+    $sql = "SELECT f.*, c.cust_name, c.cust_mobile, u.username as logged_by
+            FROM hr_customer_followups f
+            JOIN hr_customer c ON f.cust_id = c.cust_id
+            LEFT JOIN hr_user u ON f.user_id = u.user_id
+            WHERE $where
+            ORDER BY $order_by $order_dir";
+
+    if ($length > 0) {
+        $sql .= " LIMIT " . intval($start) . ", " . intval($length);
+    }
+
+    $results = select_array($sql);
+    $data = [];
+
+    foreach ($results as $row) {
+        $data[] = [
+            'created_at' => date('d M Y, h:i A', strtotime($row['created_at'])),
+            'cust_name' => '<div style="font-weight:700;color:var(--text-main);">' . htmlspecialchars($row['cust_name']) . '</div>',
+            'cust_mobile' => htmlspecialchars($row['cust_mobile']),
+            'type' => ($row['type'] == 'Call') 
+                ? '<span style="background:#ffedd5;color:#ea580c;border-radius:4px;padding:2px 6px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;"><i class="ph ph-phone"></i> Call</span>'
+                : '<span style="background:#e0f2fe;color:#0284c7;border-radius:4px;padding:2px 6px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;"><i class="ph ph-chat-teardrop-text"></i> Msg</span>',
+            'notes' => '<div style="font-size:13px;color:#1e293b;line-height:1.4;white-space:pre-wrap;">' . htmlspecialchars($row['notes']) . '</div>',
+            'status' => '<span style="background:#f1f5f9;color:#475569;border-radius:4px;padding:2px 6px;font-size:11px;font-weight:600;">' . htmlspecialchars($row['status']) . '</span>',
+            'followup_date' => ($row['followup_date'] && $row['followup_date'] != '0000-00-00') 
+                ? '<span style="color:#ea580c;font-weight:600;"><i class="ph ph-calendar-blank" style="margin-right:2px;"></i> ' . date('d M Y', strtotime($row['followup_date'])) . '</span>'
+                : '<span style="color:var(--text-muted);font-style:italic;">None</span>',
+            'logged_by' => '<strong>' . htmlspecialchars($row['logged_by'] ?? 'System') . '</strong>'
+        ];
+    }
+
+    return [
+        'draw' => isset($_REQUEST['draw']) ? intval($_REQUEST['draw']) : 0,
+        'recordsTotal' => $total_records,
+        'recordsFiltered' => $total_records,
+        'data' => $data
+    ];
+}
+
+function get_upcoming_followups() {
+    global $salon_id, $conn;
+
+    $sql = "SELECT f1.*, c.cust_name, c.cust_mobile
+            FROM hr_customer_followups f1
+            JOIN hr_customer c ON f1.cust_id = c.cust_id
+            WHERE f1.salon_id = '".mysqli_real_escape_string($conn, $salon_id ?? '')."'
+              AND f1.followup_date IS NOT NULL
+              AND f1.followup_date != '0000-00-00'
+              AND f1.followup_date <= CURRENT_DATE()
+              AND f1.status NOT IN ('Converted', 'Lost', 'Not Interested')
+              AND f1.followup_id = (
+                  SELECT MAX(f2.followup_id)
+                  FROM hr_customer_followups f2
+                  WHERE f2.cust_id = f1.cust_id
+              )
+            ORDER BY f1.followup_date ASC
+            LIMIT 15";
+
+    $results = select_array($sql);
+    $data = [];
+    $today = date('Y-m-d');
+
+    foreach ($results as $row) {
+        $is_overdue = ($row['followup_date'] < $today);
+        $days_diff = floor((strtotime($today) - strtotime($row['followup_date'])) / (60 * 60 * 24));
+        $date_formatted = ($days_diff == 0) ? "Today" : (($days_diff == 1) ? "1d overdue" : $days_diff . "d overdue");
+        
+        $data[] = [
+            'cust_id' => $row['cust_id'],
+            'cust_name' => htmlspecialchars($row['cust_name']),
+            'cust_mobile' => htmlspecialchars($row['cust_mobile']),
+            'followup_date' => $row['followup_date'],
+            'followup_date_formatted' => $date_formatted,
+            'is_overdue' => $is_overdue,
+            'notes' => strlen($row['notes']) > 50 ? substr($row['notes'], 0, 47) . '...' : $row['notes']
+        ];
+    }
+
+    return [
+        'error' => 0,
+        'data' => $data
+    ];
+}
+
 ?>

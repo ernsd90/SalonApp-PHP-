@@ -8,13 +8,17 @@ $date_now = (new DateTime())->format("Y-m-d H:i:s");
 $kk = 0;
 
 
-$salon = select_row("SELECT salon_name, salon_address, salon_contact, salon_gst, msg_id as senderid, whatsapp_enable FROM `hr_salon` WHERE `salon_id` = $salon_id");
+$salon = select_row("SELECT salon_name, salon_address, salon_contact, salon_gst, msg_id as senderid, whatsapp_enable, whatsapp_api, whatsapp_api_url, whatsapp_sender, logo FROM `hr_salon` WHERE `salon_id` = $salon_id");
 $salon_name = $salon['salon_name'];
 $salon_address = $salon['salon_address'];
 $salon_contact = $salon['salon_contact'];
 $salon_gst = $salon['salon_gst'];
 $senderid = $salon['senderid'];
 $whatsapp_enable = $salon['whatsapp_enable'];
+$whatsapp_api = $salon['whatsapp_api'] ?? '';
+$whatsapp_api_url = $salon['whatsapp_api_url'] ?? '';
+$whatsapp_sender = $salon['whatsapp_sender'] ?? '';
+$salon_logo = $salon['logo'] ?? '';
 
 $staff_service_data = array();
 
@@ -59,17 +63,8 @@ if(isset($_POST['cust_mob'])){
         update_query($sql);
     }
 
-    // Fetch active customer GST setting for wallet payments
-    $apply_gst_on_services = true;
-    if($payment_mode === 'wallet' && intval($cust_id) > 0) {
-        $cdata = select_row("SELECT COALESCE(hr_customer.active_membership_id, (SELECT plan_id FROM hr_customer_membership WHERE cust_id=hr_customer.cust_id AND status='active' ORDER BY cm_id DESC LIMIT 1)) as active_membership_id FROM hr_customer WHERE cust_id='$cust_id'");
-        if(!empty($cdata['active_membership_id'])) {
-            $pdata = select_row("SELECT gst_on_service FROM hr_membership_plans WHERE plan_id='".$cdata['active_membership_id']."'");
-            if($pdata && $pdata['gst_on_service'] == '0') {
-                $apply_gst_on_services = false;
-            }
-        }
-    }
+    // Wallet payments are always tax-free
+    $apply_gst_on_services = ($payment_mode !== 'wallet');
 
     $totol_gst = 0;
     $service_total_with_tax = 0;
@@ -194,8 +189,18 @@ if(isset($_POST['cust_mob'])){
         $round_off = $grand_total - $service_total_with_discount;
         $grand_total = $grand_total + $extra_tax;
 
-        $sql = "UPDATE `hr_invoice` SET `discount` = '".$total_discount."', `discount_mode` = '".$discount_mode."', `service_total` = '".$service_total."', `service_total_tax` = '".$totol_gst."', grand_total = '".$grand_total."', `round_off` = '".$round_off."', `payment_mode` = '".$payment_mode."' WHERE `invoice_id` = '".$invoice_id."'";
+        $amount_paid = isset($_POST['amount_paid']) && $_POST['amount_paid'] !== '' ? floatval($_POST['amount_paid']) : $grand_total;
+        if(in_array($payment_mode, ['pkg', 'wallet', 'split'])) {
+            $amount_paid = $grand_total;
+        }
+        $outstanding = max(0, $grand_total - $amount_paid);
+
+        $sql = "UPDATE `hr_invoice` SET `discount` = '".$total_discount."', `discount_mode` = '".$discount_mode."', `service_total` = '".$service_total."', `service_total_tax` = '".$totol_gst."', grand_total = '".$grand_total."', `outstanding` = '".$outstanding."', `round_off` = '".$round_off."', `payment_mode` = '".$payment_mode."' WHERE `invoice_id` = '".$invoice_id."'";
         update_query($sql);
+
+        if ($outstanding > 0) {
+            update_query("UPDATE `hr_customer` SET `cust_outstanding` = `cust_outstanding` + $outstanding WHERE `cust_id` = '$cust_id'");
+        }
 
         if($payment_mode == "split"){
             $part_cash      = isset($_POST['part_cash']) ? floatval($_POST['part_cash']) : 0;
@@ -213,8 +218,10 @@ if(isset($_POST['cust_mob'])){
             }
 
         }else{
-            $sql = "INSERT INTO `hr_invoice_payment` SET salon_id = '".$salon_id."', grand_total = '".$grand_total."', `payment_mode` = '".$payment_mode."',`invoice_id` = '".$invoice_id."',created_date = '".$date_now."'";
-            update_query($sql);
+            if($amount_paid > 0 || in_array($payment_mode, ['pkg', 'wallet'])) {
+                $sql = "INSERT INTO `hr_invoice_payment` SET salon_id = '".$salon_id."', grand_total = '".$amount_paid."', `payment_mode` = '".$payment_mode."',`invoice_id` = '".$invoice_id."',created_date = '".$date_now."'";
+                update_query($sql);
+            }
         }
         
 
@@ -389,9 +396,16 @@ if(isset($_POST['cust_mob'])){
             $message .= "Balance : *Rs." . number_format($balance ?? 0, 2) . "* remaining\n\n";
         }else{
             $message .= "Your bill for *{$formatted_amount}* has been generated.\n";
-            $message .= "Mode   : {$payment_label}\n\n";
+            $message .= "Mode   : {$payment_label}\n";
+            if ($outstanding > 0) {
+                $message .= "Paid   : Rs." . number_format($amount_paid, 2) . "\n";
+                $message .= "Pending: *Rs." . number_format($outstanding, 2) . "*\n";
+            }
+            $message .= "\n";
         }
-        $message .= "View Receipt: {$short_inv_url}\n\n";
+        if ($whatsapp_enable != 1) {
+            $message .= "View Receipt: {$short_inv_url}\n\n";
+        }
         
         if ($loyalty_on) {
             $message .= "Loyalty Points:\n";
@@ -404,14 +418,60 @@ if(isset($_POST['cust_mob'])){
             }
         }
         
-        $message .= "We'd love your feedback! Please rate your experience here:\n{$feedback_url}";
+        if ($whatsapp_enable != 1) {
+            $message .= "We'd love your feedback! Please rate your experience here:\n{$feedback_url}";
+        } else {
+            $message .= "We'd love your feedback!";
+        }
         // ─────────────────────────────────────────────────────────────────────
 
+        $whatsapp_api_success = false;
         if($salon_id != 80){
-            if($whatsapp_enable == 1){
-                SendWhatsAppSms($cust_mob, $message, $whatsapp_api);
+            if($whatsapp_enable == 1 && !empty($whatsapp_api_url)){
+                
+                // Clean and validate the mobile number
+                $clean_mob = preg_replace('/\D/', '', $cust_mob);
+                if (strlen($clean_mob) === 10) {
+                    $clean_mob = '91' . $clean_mob;
+                }
+
+                // Only trigger API if number is exactly 12 digits starting with 91
+                if (strlen($clean_mob) === 12 && substr($clean_mob, 0, 2) === '91') {
+                    $image_url = '';
+                    if(!empty($salon_logo)) {
+                        $image_url = rtrim(DOMAIN_SOFTWARE, '/') . '/' . (strpos($salon_logo, 'uploads/') === 0 ? '' : 'images/') . ltrim($salon_logo, '/');
+                        // Fix for localhost testing: WhatsApp API cannot fetch images from localhost
+                        if (strpos($image_url, 'localhost') !== false || strpos($image_url, '127.0.0.1') !== false) {
+                            $image_url = 'https://v2.salonapp.org/uploads/logo_1779732430_6a148fce05f35.png'; // Generic logo placeholder
+                        }
+                    } else {
+                        $image_url = 'https://v2.salonapp.org/uploads/logo_1779732430_6a148fce05f35.png'; // Fallback if no logo
+                    }
+                    
+                    $wa_short_inv_url = $short_inv_url;
+                    $wa_feedback_url = $feedback_url;
+                    
+                    // Fix for localhost testing: WhatsApp API silently rejects messages with localhost URLs in buttons
+                    if (strpos($wa_short_inv_url, 'localhost') !== false || strpos($wa_short_inv_url, '127.0.0.1') !== false) {
+                        $wa_short_inv_url = str_replace(['http://localhost', 'http://127.0.0.1'], 'https://v2.salonapp.org', $wa_short_inv_url);
+                    }
+                    if (strpos($wa_feedback_url, 'localhost') !== false || strpos($wa_feedback_url, '127.0.0.1') !== false) {
+                        $wa_feedback_url = str_replace(['http://localhost', 'http://127.0.0.1'], 'https://v2.salonapp.org', $wa_feedback_url);
+                    }
+
+                    $api_res = sendWhatsappButtonApi($whatsapp_api_url, $whatsapp_api, $whatsapp_sender, $clean_mob, $message, $wa_short_inv_url, $wa_feedback_url, $image_url);
+                    if(isset($api_res['success']) && $api_res['success']) {
+                        $whatsapp_api_success = true;
+                    }
+                    // Debug logging
+                    $log = "[" . date('Y-m-d H:i:s') . "] Invoice: $invoice_id | Mob: $clean_mob | Res: " . json_encode($api_res) . "\n";
+                    file_put_contents('whatsapp_debug.log', $log, FILE_APPEND);
+                } else {
+                    $log = "[" . date('Y-m-d H:i:s') . "] Invoice: $invoice_id | Mob validation failed: orig=$cust_mob, clean=$clean_mob\n";
+                    file_put_contents('whatsapp_debug.log', $log, FILE_APPEND);
+                }
             }else{
-                //sendapisms($cust_mob,$message,$senderid);
+                // sendapisms($cust_mob,$message,$senderid);
             }
         }
 
@@ -447,47 +507,58 @@ if(isset($_POST['save_bill_print'])){
 $redirect_url = DOMAIN_SOFTWARE . "print_invoice.php";
 
 if (isset($invoice_id)) {
-    // WhatsApp popup message for print_invoice.php
-    // Use emojis here — this goes via browser (wa.me), not through an API
-    $wa_phone = preg_replace('/\D/', '', $cust_mob);
-    if (strlen($wa_phone) === 10) $wa_phone = '91' . $wa_phone;
-
-    // Short URL already generated above ($short_inv_url / $share_token)
-    $cust_first_wa    = ucfirst(strtolower(explode(' ', trim($cust_name))[0]));
-    $formatted_amt_wa = 'Rs.' . number_format((float)$grand_total, 2);
-    $payment_lbl_wa   = ucfirst(strtolower($payment_mode));
-
-    $feedback_url = DOMAIN_SOFTWARE . "feedback.php?inv=" . $invoice_id;
-
-    $wa_msg = "Dear {$cust_first_wa},\n\n";
-    $wa_msg .= "Thank you for visiting *{$salon_name}*! We loved having you.\n\n";
-    if ($payment_mode == 'pkg') {
-        $wa_msg .= "Your visit has been recorded.\n";
-        $wa_msg .= "Amount  : *{$formatted_amt_wa}*\n";
-        $wa_msg .= "Mode    : Package / Wallet\n";
-        $wa_msg .= "Balance : *Rs." . number_format($balance ?? 0, 2) . "* remaining\n\n";
-    } else {
-        $wa_msg .= "Your bill for *{$formatted_amt_wa}* has been generated.\n";
-        $wa_msg .= "Mode   : {$payment_lbl_wa}\n\n";
-    }
-    $wa_msg .= "🧾 View Receipt: {$short_inv_url}\n\n";
+    $redirect_url .= "?invoice_id=" . $invoice_id;
     
-    if ($loyalty_on) {
-        $wa_msg .= "💎 Loyalty Points:\n";
-        $wa_msg .= "• Earned this visit: " . number_format($pts_earned, 0) . " pts\n";
-        $wa_msg .= "• Total Balance: " . number_format($total_points, 0) . " pts\n\n";
-        
-        if (!$is_profile_complete && $profile_points > 0) {
-            $complete_profile_url = DOMAIN_SOFTWARE . "complete_profile.php?inv=" . $invoice_id;
-            $wa_msg .= "🎁 Complete your profile to get " . number_format($profile_points, 0) . " bonus points!\n🔗 Fill details here: {$complete_profile_url}\n\n";
+    // Only show manual popup if API is disabled
+    if ($whatsapp_enable != 1) {
+        // WhatsApp popup message for print_invoice.php
+        // Use emojis here — this goes via browser (wa.me), not through an API
+        $wa_phone = preg_replace('/\D/', '', $cust_mob);
+        if (strlen($wa_phone) === 10) $wa_phone = '91' . $wa_phone;
+
+        // Short URL already generated above ($short_inv_url / $share_token)
+        $cust_first_wa    = ucfirst(strtolower(explode(' ', trim($cust_name))[0]));
+        $formatted_amt_wa = 'Rs.' . number_format((float)$grand_total, 2);
+        $payment_lbl_wa   = ucfirst(strtolower($payment_mode));
+
+        $feedback_url = DOMAIN_SOFTWARE . "feedback.php?inv=" . $invoice_id;
+
+        $wa_msg = "Dear {$cust_first_wa},\n\n";
+        $wa_msg .= "Thank you for visiting *{$salon_name}*! We loved having you.\n\n";
+        if ($payment_mode == 'pkg') {
+            $wa_msg .= "Your visit has been recorded.\n";
+            $wa_msg .= "Amount  : *{$formatted_amt_wa}*\n";
+            $wa_msg .= "Mode    : Package / Wallet\n";
+            $wa_msg .= "Balance : *Rs." . number_format($balance ?? 0, 2) . "* remaining\n\n";
+        } else {
+            $wa_msg .= "Your bill for *{$formatted_amt_wa}* has been generated.\n";
+            $wa_msg .= "Mode   : {$payment_lbl_wa}\n";
+            if (isset($outstanding) && $outstanding > 0) {
+                $wa_msg .= "Paid   : Rs." . number_format($amount_paid, 2) . "\n";
+                $wa_msg .= "Pending: *Rs." . number_format($outstanding, 2) . "*\n";
+            }
+            $wa_msg .= "\n";
         }
-    }
-    
-    $wa_msg .= "⭐ We'd love your feedback! Please rate your experience here:\n{$feedback_url}";
+        $wa_msg .= "🧾 View Receipt: {$short_inv_url}\n\n";
+        
+        if ($loyalty_on) {
+            $wa_msg .= "💎 Loyalty Points:\n";
+            $wa_msg .= "• Earned this visit: " . number_format($pts_earned, 0) . " pts\n";
+            $wa_msg .= "• Total Balance: " . number_format($total_points, 0) . " pts\n\n";
+            
+            if (!$is_profile_complete && $profile_points > 0) {
+                $complete_profile_url = DOMAIN_SOFTWARE . "complete_profile.php?inv=" . $invoice_id;
+                $wa_msg .= "🎁 Complete your profile to get " . number_format($profile_points, 0) . " bonus points!\n🔗 Fill details here: {$complete_profile_url}\n\n";
+            }
+        }
+        
+        $wa_msg .= "⭐ We'd love your feedback! Please rate your experience here:\n{$feedback_url}";
 
-    $redirect_url .= "?invoice_id=" . $invoice_id
-                   . "&wa_phone=" . urlencode($wa_phone)
-                   . "&wa_msg="   . urlencode($wa_msg);
+        $redirect_url .= "&wa_phone=" . urlencode($wa_phone)
+                       . "&wa_msg="   . urlencode($wa_msg);
+    } else {
+        $redirect_url .= "&skip_wa_popup=1";
+    }
 } else {
     $redirect_url = DOMAIN_SOFTWARE . "invoices.php";
 }

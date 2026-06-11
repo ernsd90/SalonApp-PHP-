@@ -307,7 +307,11 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
     <!-- Header -->
     <div class="header">
         <?php if(!empty($logo)): ?>
-            <img src="images/<?= $logo ?>" style="max-height:50px; margin-bottom:6px;" alt="Logo"><br>
+            <?php if(strpos($logo, 'uploads/') === 0 || strpos($logo, '/') !== false): ?>
+                <img src="<?= htmlspecialchars($logo) ?>" style="max-height:50px; margin-bottom:6px; object-fit: contain;" alt="Logo"><br>
+            <?php else: ?>
+                <img src="images/<?= htmlspecialchars($logo) ?>" style="max-height:50px; margin-bottom:6px; object-fit: contain;" alt="Logo"><br>
+            <?php endif; ?>
         <?php endif; ?>
         <div class="salon-name"><?= htmlspecialchars($firm_name ?: $salon_name) ?></div>
         <?php if($firm_name && $firm_name != $salon_name): ?>
@@ -367,7 +371,7 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
         ?>
         <div class="total-row"><span>Subtotal</span><span>₹<?= number_format((float)$display_subtotal, 2) ?></span></div>
 
-        <?php if($totol_gst > 0): ?>
+        <?php if($totol_gst > 0 && $payment_mode !== 'wallet'): ?>
         <div class="total-row gst"><span>CGST (<?= number_format((float)$gst_percentage/2, 1) ?>%)</span><span>₹<?= number_format((float)$totol_gst/2, 2) ?></span></div>
         <div class="total-row gst"><span>SGST (<?= number_format((float)$gst_percentage/2, 1) ?>%)</span><span>₹<?= number_format((float)$totol_gst/2, 2) ?></span></div>
         <?php endif; ?>
@@ -527,7 +531,7 @@ $skip_url  = DOMAIN_SOFTWARE . 'invoices.php';
 
 <?php if(isset($_GET['type']) && $_GET['type'] == 'close'): ?>
 <script>window.onfocus = function() { window.close(); }</script>
-<?php elseif(!isset($_GET['view']) || $_GET['view'] != 1): ?>
+<?php elseif((!isset($_GET['view']) || $_GET['view'] != 1) && (!isset($_GET['skip_wa_popup']) || $_GET['skip_wa_popup'] != 1)): ?>
 
 <!-- ── WhatsApp Popup ─────────────────────────────────────────────── -->
 <style>
@@ -647,6 +651,24 @@ window.addEventListener('afterprint', showWaPopup);
 
 // 2-second fallback in case afterprint doesn't fire (some browsers/printers)
 setTimeout(showWaPopup, 2000);
+</script>
+
+<?php elseif(isset($_GET['skip_wa_popup']) && $_GET['skip_wa_popup'] == 1): ?>
+<!-- Auto-redirect to panel if WhatsApp API handled the message silently -->
+<script>
+function redirectToPanel() {
+    window.location.href = '<?= DOMAIN_SOFTWARE ?>invoices.php';
+}
+
+if (window.matchMedia) {
+    var mql = window.matchMedia('print');
+    mql.addEventListener('change', function(e) {
+        if (!e.matches) redirectToPanel();
+    });
+}
+window.addEventListener('afterprint', redirectToPanel);
+
+setTimeout(redirectToPanel, 2000);
 </script>
 
 <?php endif; ?>

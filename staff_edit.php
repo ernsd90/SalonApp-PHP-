@@ -29,10 +29,12 @@ if(isset($_REQUEST['staff_id']) && is_numeric($_REQUEST['staff_id'])){
 
         $staff_salary = $staff['staff_salary'];
         $staff_status = $staff['staff_status'];
+        $notify_daily_sale = isset($staff['notify_daily_sale']) ? intval($staff['notify_daily_sale']) : 0;
     }
 } else {
     $staff_role = $department = $gender = '';
     $seniority = 'Junior';
+    $notify_daily_sale = 0;
 }
 ?>
 
@@ -108,6 +110,21 @@ if(isset($_REQUEST['staff_id']) && is_numeric($_REQUEST['staff_id'])){
             </select>
         </div>
 
+        <div class="form-group" style="grid-column: span 2;">
+            <label style="display:flex; align-items:center; justify-content:space-between;">
+                <span>Send Daily Sale Notification (WhatsApp)</span>
+                <label class="toggle-switch" style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+                    <input type="hidden" name="notify_daily_sale" value="0">
+                    <input type="checkbox" name="notify_daily_sale" value="1" id="notify_daily_sale_chk" <?= $notify_daily_sale == 1 ? 'checked' : '' ?> style="display:none;">
+                    <span id="toggle_knob" onclick="toggleNotify()" style="display:inline-flex; width:44px; height:24px; background:<?= $notify_daily_sale ? '#6366f1' : '#cbd5e1' ?>; border-radius:12px; padding:2px; transition:background 0.2s; cursor:pointer;">
+                        <span style="width:20px; height:20px; background:white; border-radius:50%; transition:transform 0.2s; transform:<?= $notify_daily_sale ? 'translateX(20px)' : 'translateX(0)' ?>;"></span>
+                    </span>
+                    <span id="toggle_label" style="font-size:13px; font-weight:500; color:#64748b;"><?= $notify_daily_sale ? 'Enabled' : 'Disabled' ?></span>
+                </label>
+            </label>
+            <p style="font-size:12px; color:#94a3b8; margin-top:4px;">Staff will receive their daily sales report via WhatsApp at end of day.</p>
+        </div>
+
     </div>
 
     <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 20px;">
@@ -115,3 +132,15 @@ if(isset($_REQUEST['staff_id']) && is_numeric($_REQUEST['staff_id'])){
         <button type="submit" class="btn-primary" style="width: auto; margin-top: 0; padding: 10px 24px;"><?= $user_action == 'create' ? 'Add Stylist' : 'Save Changes' ?></button>
     </div>
 </form>
+<script>
+function toggleNotify() {
+    var chk = document.getElementById('notify_daily_sale_chk');
+    var knob = document.getElementById('toggle_knob');
+    var label = document.getElementById('toggle_label');
+    chk.checked = !chk.checked;
+    knob.style.background = chk.checked ? '#6366f1' : '#cbd5e1';
+    knob.querySelector('span').style.transform = chk.checked ? 'translateX(20px)' : 'translateX(0)';
+    label.textContent = chk.checked ? 'Enabled' : 'Disabled';
+}
+</script>
+

@@ -13,7 +13,7 @@ $loyalty_enabled = false;
 $profile_points = 0;
 
 if ($inv_id > 0) {
-    $invoice = select_row("SELECT i.invoice_id, i.cust_id, i.salon_id, s.salon_name
+    $invoice = select_row("SELECT i.invoice_id, i.cust_id, i.salon_id, s.salon_name, s.logo
         FROM hr_invoice i
         JOIN hr_salon s ON i.salon_id = s.salon_id
         WHERE i.invoice_id = '$inv_id' AND i.delete_bill = 0");
@@ -256,7 +256,16 @@ if ($customer && $invoice) {
 </head>
 <body>
 <div class="card">
-    <div class="logo-wrap"><i class="ph-fill ph-sparkles"></i></div>
+    <?php 
+    $salon_logo = $invoice['logo'] ?? '';
+    if(!empty($salon_logo) && file_exists($salon_logo)): 
+    ?>
+        <div style="margin-bottom: 24px; text-align: center; width: 100%;">
+            <img src="<?= htmlspecialchars($salon_logo) ?>" style="max-width: 100%; max-height: 80px; object-fit: contain;">
+        </div>
+    <?php else: ?>
+        <div class="logo-wrap"><i class="ph-fill ph-sparkles"></i></div>
+    <?php endif; ?>
     <h1><?= htmlspecialchars($salon_name) ?></h1>
 
     <?php if (!$invoice || !$customer): ?>

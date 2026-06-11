@@ -10,8 +10,17 @@ function sb_active(array $pages): string {
 
     <!-- Logo -->
     <div class="sb-logo">
-        <div class="sb-logo-icon"><i class="ph-fill ph-scissors"></i></div>
-        <span class="sb-logo-text">Salon OS</span>
+        <?php 
+        $active_logo = get_session_data('logo');
+        if(!empty($active_logo) && file_exists($active_logo)): 
+        ?>
+            <div class="sb-logo-icon" style="background: none; overflow: hidden; display: flex; align-items: center; justify-content: center; border: none; padding: 0; width: 42px;">
+                <img src="<?= htmlspecialchars($active_logo) ?>" style="width: 100%; height: 100%; object-fit: contain;">
+            </div>
+        <?php else: ?>
+            <div class="sb-logo-icon"><i class="ph-fill ph-scissors"></i></div>
+        <?php endif; ?>
+        <span class="sb-logo-text"><?= htmlspecialchars(get_session_data('salon_name') ?: 'Salon OS') ?></span>
         <button id="close-sidebar-btn" class="sb-close-btn"><i class="ph ph-x"></i></button>
     </div>
 
@@ -95,6 +104,9 @@ function sb_active(array $pages): string {
             <a href="customers.php" class="sb-link <?= sb_active(['customers.php']) ?>">
                 <i class="ph ph-users"></i><span>Customers</span>
             </a>
+            <a href="followup_reports.php" class="sb-link <?= sb_active(['followup_reports.php']) ?>">
+                <i class="ph ph-phone-call"></i><span>Follow-ups &amp; Tasks</span>
+            </a>
             <?php endif; ?>
 
             <a href="loyalty.php" class="sb-link <?= sb_active(['loyalty.php']) ?>">
@@ -113,6 +125,10 @@ function sb_active(array $pages): string {
 
             <a href="reports.php" class="sb-link <?= sb_active(['reports.php']) ?>">
                 <i class="ph ph-chart-bar"></i><span>Sales Reports</span>
+            </a>
+
+            <a href="outstanding_reports.php" class="sb-link <?= sb_active(['outstanding_reports.php']) ?>">
+                <i class="ph ph-warning-circle text-danger"></i><span style="color:#ef4444;">Outstanding Debts</span>
             </a>
 
             <a href="crm_reports.php" class="sb-link <?= sb_active(['crm_reports.php']) ?>">

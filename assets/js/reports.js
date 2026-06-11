@@ -314,6 +314,4 @@ $(document).ready(function () {
         } else {
             expensesTable.ajax.reload();
         }
-    }
-
 });

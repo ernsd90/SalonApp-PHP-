@@ -10,7 +10,7 @@ $invoice = null;
 $already_rated = false;
 
 if ($inv_id > 0) {
-    $invoice = select_row("SELECT i.invoice_id, i.cust_id, i.salon_id, c.cust_name, c.cust_mobile, s.salon_name, s.google_review_link
+    $invoice = select_row("SELECT i.invoice_id, i.cust_id, i.salon_id, c.cust_name, c.cust_mobile, s.salon_name, s.google_review_link, s.logo
         FROM hr_invoice i
         JOIN hr_customer c ON i.cust_id = c.cust_id
         JOIN hr_salon s ON i.salon_id = s.salon_id
@@ -128,7 +128,16 @@ $submitted_rating = isset($rating) ? $rating : 0;
 </head>
 <body>
 <div class="card">
-    <div class="logo-wrap"><i class="ph-fill ph-scissors"></i></div>
+    <?php 
+    $salon_logo = $invoice['logo'] ?? '';
+    if(!empty($salon_logo) && file_exists($salon_logo)): 
+    ?>
+        <div style="margin-bottom: 24px; text-align: center; width: 100%;">
+            <img src="<?= htmlspecialchars($salon_logo) ?>" style="max-width: 100%; max-height: 80px; object-fit: contain;">
+        </div>
+    <?php else: ?>
+        <div class="logo-wrap"><i class="ph-fill ph-scissors"></i></div>
+    <?php endif; ?>
     <h1><?= htmlspecialchars($salon_name) ?></h1>
 
     <?php if (!$invoice): ?>

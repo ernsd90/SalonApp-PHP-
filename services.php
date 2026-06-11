@@ -16,7 +16,13 @@ include 'header.php';
     
     <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
         <h3 style="font-size: 16px; font-weight: 600; margin: 0; color: var(--text-main);">Available Services</h3>
-        <div style="display: flex; gap: 12px;">
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a href="export_services_csv.php" target="_blank" class="btn-primary" style="background: #f8fafc; color: #475569; border: 1px solid var(--border-color); width: auto; padding: 10px 16px; margin: 0; font-size: 14px; display: flex; align-items: center; gap: 8px; box-shadow: none;">
+                <i class="ph-bold ph-download-simple"></i> Export CSV
+            </a>
+            <button class="btn-primary" style="background: #f8fafc; color: #475569; border: 1px solid var(--border-color); width: auto; padding: 10px 16px; margin: 0; font-size: 14px; display: flex; align-items: center; gap: 8px; box-shadow: none;" onclick="$('#importCsvModal').addClass('active');">
+                <i class="ph-bold ph-upload-simple"></i> Import CSV
+            </button>
             <a href="service_cat.php" class="btn-primary" style="background: white; color: var(--text-main); border: 1px solid var(--border-color); width: auto; padding: 10px 16px; margin: 0; font-size: 14px; display: flex; align-items: center; gap: 8px; box-shadow: none;">
                 <i class="ph-bold ph-folder-open"></i> Manage Categories
             </a>
@@ -61,6 +67,32 @@ include 'header.php';
 <!-- Service Edit Modal -->
 <div class="modal-overlay" id="commonModalOverlay">
     <div class="modal-dialog" id="commonModalContent"></div>
+</div>
+
+<!-- Import CSV Modal -->
+<div class="modal-overlay" id="importCsvModal">
+    <div class="modal-dialog" style="max-width: 450px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border-color); background: #f8fafc;">
+            <h3 style="margin:0; font-size:16px; font-weight:600;"><i class="ph ph-upload-simple" style="margin-right:6px;"></i>Import Services CSV</h3>
+            <button class="close-modal" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-muted);"><i class="ph ph-x"></i></button>
+        </div>
+        <div style="padding: 24px;">
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+                Upload a CSV file to bulk import or update services. The file MUST have the following column order (without headers):<br>
+                <b>Category, Service Name, Price, Reminder (Days), Status (Active/Disabled), Variations</b><br>
+                <i>Tip: Use Export CSV to get the correct format template! Variations should be formatted as <code>Kids:200|Adult:400</code>.</i>
+            </p>
+            <form id="importCsvForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <input type="file" name="csv_file" class="form-control" accept=".csv" required style="padding: 10px; height: auto;">
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <button type="button" class="btn btn-light close-modal" style="padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border-color); background: white; cursor: pointer;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="padding: 10px 20px; border-radius: 8px; border: none; background: #0284c7; color: white; cursor: pointer; font-weight: 600;">Import Now</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <!-- Variations Management Modal -->
@@ -374,6 +406,47 @@ $(document).ready(function() {
     // Enter key in inputs
     $('#var_name_input, #var_price_input').on('keydown', function(e) {
         if(e.key === 'Enter') { e.preventDefault(); $('#btn_save_variation').click(); }
+    });
+
+    // Import CSV Form Submit
+    $('#importCsvForm').submit(function(e) {
+        e.preventDefault();
+        var form = $(this);
+        var submitBtn = form.find('button[type="submit"]');
+        var originalText = submitBtn.html();
+        
+        submitBtn.html('<i class="ph ph-spinner ph-spin"></i> Uploading...').prop('disabled', true);
+        
+        var formData = new FormData(this);
+        
+        $.ajax({
+            url: 'import_services_csv.php',
+            type: 'POST',
+            data: formData,
+            success: function (res) {
+                try {
+                    var obj = JSON.parse(res);
+                    if (obj.error == 1) {
+                        alert(obj.msg);
+                    } else {
+                        alert(obj.msg);
+                        $('#importCsvModal').removeClass('active');
+                        form[0].reset();
+                        if ($.fn.DataTable.isDataTable('#get_service')) $('#get_service').DataTable().draw(false);
+                    }
+                } catch(err) {
+                    alert('Error parsing server response.');
+                }
+                submitBtn.html(originalText).prop('disabled', false);
+            },
+            error: function () {
+                alert('Network error while uploading.');
+                submitBtn.html(originalText).prop('disabled', false);
+            },
+            cache: false,
+            contentType: false,
+            processData: false
+        });
     });
 });
 </script>

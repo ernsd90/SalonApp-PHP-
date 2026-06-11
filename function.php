@@ -236,4 +236,85 @@ function sendBillToMake($cust_name, $cust_phone, $total_amount, $payment_method,
     }
     return ['success' => true, 'response' => $response, 'error' => null];
 }
+/**
+ * Send WhatsApp message using the Send Button API
+ *
+ * @param string $endpoint API Endpoint URL
+ * @param string $api_key API Key
+ * @param string $sender Sender Number
+ * @param string $number Recipient Number
+ * @param string $message Text message content
+ * @param string $invoice_url URL for View Receipt button
+ * @param string $feedback_url URL for Give Feedback button
+ * @param string $image_url Header image URL
+ * @return array
+ */
+function sendWhatsappButtonApi($endpoint, $api_key, $sender, $number, $message, $invoice_url, $feedback_url, $image_url) {
+    $buttons = [
+        [
+            "type" => "url",
+            "displayText" => "View Receipt",
+            "url" => $invoice_url
+        ],
+        [
+            "type" => "url",
+            "displayText" => "Give Feedback",
+            "url" => $feedback_url
+        ]
+    ];
+    return sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $message, $buttons, $image_url);
+}
+
+/**
+ * Send WhatsApp message using the Send Button API with custom buttons
+ *
+ * @param string $endpoint API Endpoint URL
+ * @param string $api_key API Key
+ * @param string $sender Sender Number
+ * @param string $number Recipient Number
+ * @param string $message Text message content
+ * @param array $buttons Array of button structures
+ * @param string $image_url Header image URL
+ * @return array
+ */
+function sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $message, $buttons = [], $image_url = '') {
+    if (empty(trim($endpoint)) || empty(trim($api_key)) || empty(trim($sender))) {
+        return ['success' => false, 'error' => 'API Configuration incomplete'];
+    }
+
+    $payload = [
+        "api_key" => $api_key,
+        "sender" => $sender,
+        "number" => $number,
+        "message" => $message,
+        "button" => $buttons
+    ];
+    
+    if (!empty($image_url)) {
+        $payload["image"] = $image_url;
+    }
+
+    $json_payload = json_encode($payload);
+
+    $ch = curl_init($endpoint);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $json_payload,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'Content-Length: ' . strlen($json_payload),
+        ],
+    ]);
+    $response = curl_exec($ch);
+    $error    = curl_error($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($error) {
+        return ['success' => false, 'response' => null, 'error' => $error];
+    }
+    return ['success' => ($http_code >= 200 && $http_code < 300), 'response' => $response, 'error' => null];
+}
 ?>

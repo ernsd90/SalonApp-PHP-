@@ -1,4 +1,10 @@
-<?php include 'header.php'; ?>
+<?php 
+include 'header.php'; 
+$salon_row = select_row("SELECT salon_name FROM hr_salon WHERE salon_id='$salon_id'");
+$salon_name_val = $salon_row ? $salon_row['salon_name'] : 'Our Salon';
+?>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
+
 
 <div class="dashboard-header" style="margin-bottom:24px;">
     <h1 style="font-size:24px;font-weight:700;margin-bottom:4px;">Membership & Package Reports</h1>
@@ -75,13 +81,40 @@
 
 <!-- Tab Content: Memberships -->
 <div id="tab_memberships" class="rpt-tab-content">
-    <div class="card-modern" style="background:white;border-radius:16px;border:1px solid var(--border-color);box-shadow:var(--shadow-sm);overflow:auto;">
+    <div class="card-modern" style="background:white;border-radius:16px;border:1px solid var(--border-color);box-shadow:var(--shadow-sm);padding:24px;overflow:auto;">
+        
+        <!-- Table Filters Row -->
+        <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 18px;border-radius:12px;border:1px solid var(--border-color);">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i class="ph ph-funnel" style="color:var(--primary);font-size:18px;"></i>
+                <span style="font-weight:700;font-size:13px;color:var(--text-main);text-transform:uppercase;letter-spacing:.5px;">Filters:</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="font-weight:600;font-size:13px;color:var(--text-muted);margin:0;">Status</label>
+                <select id="mem_status_filter" class="form-control" style="width:140px;padding:6px 12px;height:auto;font-size:13px;border-radius:8px;">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="pending">Pending</option>
+                    <option value="expired">Expired</option>
+                    <option value="paused">Paused</option>
+                    <option value="refunded">Refunded</option>
+                </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="font-weight:600;font-size:13px;color:var(--text-muted);margin:0;">Payment Mode</label>
+                <select id="mem_mode_filter" class="form-control" style="width:180px;padding:6px 12px;height:auto;font-size:13px;border-radius:8px;">
+                    <option value="">All Payment Modes</option>
+                </select>
+            </div>
+        </div>
+
         <table style="width:100%;border-collapse:collapse;min-width:900px;" id="mem_report_table">
             <thead style="background:#f8fafc;">
                 <tr>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);text-align:left;">Customer</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Mobile</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Plan</th>
+                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Purchased</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Paid</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Outstanding</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Wallet</th>
@@ -92,7 +125,7 @@
                 </tr>
             </thead>
             <tbody id="mem_report_body">
-                <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">Click "Load Reports" to view data.</td></tr>
+                <tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">Click "Load Reports" to view data.</td></tr>
             </tbody>
         </table>
     </div>
@@ -100,7 +133,32 @@
 
 <!-- Tab Content: Packages -->
 <div id="tab_packages" class="rpt-tab-content" style="display:none;">
-    <div class="card-modern" style="background:white;border-radius:16px;border:1px solid var(--border-color);box-shadow:var(--shadow-sm);overflow:auto;">
+    <div class="card-modern" style="background:white;border-radius:16px;border:1px solid var(--border-color);box-shadow:var(--shadow-sm);padding:24px;overflow:auto;">
+        
+        <!-- Table Filters Row -->
+        <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;align-items:center;background:#f8fafc;padding:12px 18px;border-radius:12px;border:1px solid var(--border-color);">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i class="ph ph-funnel" style="color:var(--primary);font-size:18px;"></i>
+                <span style="font-weight:700;font-size:13px;color:var(--text-main);text-transform:uppercase;letter-spacing:.5px;">Filters:</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="font-weight:600;font-size:13px;color:var(--text-muted);margin:0;">Status</label>
+                <select id="pkg_status_filter" class="form-control" style="width:140px;padding:6px 12px;height:auto;font-size:13px;border-radius:8px;">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="expired">Expired</option>
+                    <option value="refunded">Refunded</option>
+                    <option value="fully_used">Fully Used</option>
+                </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="font-weight:600;font-size:13px;color:var(--text-muted);margin:0;">Payment Mode</label>
+                <select id="pkg_mode_filter" class="form-control" style="width:180px;padding:6px 12px;height:auto;font-size:13px;border-radius:8px;">
+                    <option value="">All Payment Modes</option>
+                </select>
+            </div>
+        </div>
+
         <table style="width:100%;border-collapse:collapse;min-width:900px;" id="pkg_report_table">
             <thead style="background:#f8fafc;">
                 <tr>
@@ -165,6 +223,8 @@
     <div class="modal-dialog" id="commonModalContent"></div>
 </div>
 
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
 <script>
 $('.rpt-tab').click(function(){
     $('.rpt-tab').removeClass('active').css({background:'#f1f5f9',color:'var(--text-main)'});
@@ -173,8 +233,12 @@ $('.rpt-tab').click(function(){
     $('#tab_' + $(this).data('tab')).show();
 });
 
+const DOMAIN_SOFTWARE = "<?= DOMAIN_SOFTWARE ?>";
+const SALON_NAME = <?= json_encode($salon_name_val) ?>;
 var allMembersData = [];
 var allPkgData = [];
+var memTable = null;
+var pkgTable = null;
 
 function loadReports() {
     var from = $('#rpt_from').val();
@@ -211,7 +275,20 @@ function loadReports() {
                     var printBtn = m.invoice_id
                         ? '<a href="print_invoice.php?invoice_id='+m.invoice_id+'" target="_blank" style="background:#e0e7ff;color:#4f46e5;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">🖨 Print</a>'
                         : '';
-                    var waMsg = 'Hi '+m.cust_name+', your '+m.plan_name+' membership is confirmed. Paid: ₹'+parseFloat(m.paid_amount).toFixed(0)+(outstanding>0?' | Due: ₹'+outstanding.toFixed(0):'')+'. Thank you!';
+                    var feedbackUrl = m.effective_invoice_id ? DOMAIN_SOFTWARE + 'feedback.php?inv=' + m.effective_invoice_id : '';
+                    var completeProfileUrl = m.effective_invoice_id ? DOMAIN_SOFTWARE + 'complete_profile.php?inv=' + m.effective_invoice_id : '';
+
+                    var waMsg = 'Hello *' + m.cust_name + '*,\n\n' +
+                        'Thank you for choosing *' + SALON_NAME + '*! We are delighted to confirm your *' + m.plan_name + '* membership.\n\n' +
+                        '*Payment Details:*\n' +
+                        '• Paid: ₹' + parseFloat(m.paid_amount).toFixed(2) + '\n' +
+                        '• Outstanding: ₹' + outstanding.toFixed(2) + '\n' +
+                        '• Expiry Date: ' + (m.expiry_date || '—') + '\n\n' +
+                        (feedbackUrl ? '📝 *Share your feedback:* ' + feedbackUrl + '\n' : '') +
+                        (completeProfileUrl ? '👤 *Complete your profile:* ' + completeProfileUrl + '\n\n' : '\n') +
+                        'We look forward to welcoming you at your next visit!\n\n' +
+                        'Warm regards,\n' +
+                        'Team *' + SALON_NAME + '*';
                     var waPhone = (m.cust_mobile||'').replace(/[^0-9]/g,'');
                     var waBtn = waPhone ? '<a href="https://wa.me/91'+waPhone+'?text='+encodeURIComponent(waMsg)+'" target="_blank" style="background:#dcfce7;color:#15803d;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">&#128172; WA</a>' : '';
                     var walletBtn = '<button class="modalButtonCommon" data-href="customer_membership_view.php?cust_id='+m.cust_id+'" title="Wallet Ledger" style="background:#f3e8ff;color:#9333ea;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128179; Ledger</button>';
@@ -220,9 +297,10 @@ function loadReports() {
                         '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+m.cust_name+'</td>' +
                         '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+m.cust_mobile+'</td>' +
                         '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+m.plan_name+'</td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:#059669;font-weight:600;">₹'+parseFloat(m.paid_amount).toFixed(2)+'</td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';">₹'+outstanding.toFixed(2)+'</td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:var(--primary);font-weight:600;">₹'+parseFloat(m.wallet_credit||0).toFixed(2)+'</td>' +
+                        '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+(m.start_date||'—')+'</td>' +
+                        '<td data-order="'+parseFloat(m.paid_amount)+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:#059669;font-weight:600;">₹'+parseFloat(m.paid_amount).toFixed(2)+'</td>' +
+                        '<td data-order="'+outstanding+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';">₹'+outstanding.toFixed(2)+'</td>' +
+                        '<td data-order="'+parseFloat(m.wallet_credit||0)+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:var(--primary);font-weight:600;">₹'+parseFloat(m.wallet_credit||0).toFixed(2)+'</td>' +
                         '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;">'+mode+'</td>' +
                         '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><span style="background:'+sc+'20;color:'+sc+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">'+m.status+'</span></td>' +
                         '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:var(--text-muted);font-size:13px;">'+(m.expiry_date||'—')+'</td>' +
@@ -230,9 +308,42 @@ function loadReports() {
                     '</tr>';
                 });
             } else {
-                rows = '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
+                rows = '<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
             }
             $('#mem_report_body').html(rows);
+
+            if (memTable) {
+                memTable.destroy();
+            }
+
+            if (allMembersData.length > 0) {
+                memTable = $('#mem_report_table').DataTable({
+                    responsive: true,
+                    pageLength: 10,
+                    order: [[3, 'desc']],
+                    columnDefs: [
+                        { orderable: false, targets: [1, 10] }
+                    ]
+                });
+            } else {
+                memTable = null;
+            }
+
+            var memModes = [];
+            allMembersData.forEach(function(m){
+                var m_mode = (m.payment_mode || '—').trim().toUpperCase();
+                if(m_mode && m_mode !== '—' && memModes.indexOf(m_mode) === -1) {
+                    memModes.push(m_mode);
+                }
+            });
+            var modeOptions = '<option value="">All Payment Modes</option>';
+            memModes.sort().forEach(function(mode){
+                modeOptions += '<option value="'+mode+'">'+mode+'</option>';
+            });
+            $('#mem_mode_filter').html(modeOptions);
+
+            $('#mem_status_filter').val('');
+            $('#mem_mode_filter').val('');
         }
     });
 
@@ -258,7 +369,20 @@ function loadReports() {
                     var printBtn = p.invoice_id
                         ? '<a href="print_invoice.php?invoice_id='+p.invoice_id+'" target="_blank" style="background:#e0e7ff;color:#4f46e5;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">🖨 Print</a>'
                         : '';
-                    var waMsg2 = 'Hi '+p.cust_name+', your '+p.package_name+' package is confirmed. Paid: ₹'+parseFloat(p.paid_amount||0).toFixed(0)+(outstanding>0?' | Due: ₹'+outstanding.toFixed(0):'')+'. Thank you!';
+                    var feedbackUrl = p.effective_invoice_id ? DOMAIN_SOFTWARE + 'feedback.php?inv=' + p.effective_invoice_id : '';
+                    var completeProfileUrl = p.effective_invoice_id ? DOMAIN_SOFTWARE + 'complete_profile.php?inv=' + p.effective_invoice_id : '';
+
+                    var waMsg2 = 'Hello *' + p.cust_name + '*,\n\n' +
+                        'Thank you for choosing *' + SALON_NAME + '*! We are delighted to confirm your *' + p.package_name + '* package.\n\n' +
+                        '*Payment Details:*\n' +
+                        '• Paid: ₹' + parseFloat(p.paid_amount || 0).toFixed(2) + '\n' +
+                        '• Outstanding: ₹' + outstanding.toFixed(2) + '\n' +
+                        '• Expiry Date: ' + (p.expiry_date || '—') + '\n\n' +
+                        (feedbackUrl ? '📝 *Share your feedback:* ' + feedbackUrl + '\n' : '') +
+                        (completeProfileUrl ? '👤 *Complete your profile:* ' + completeProfileUrl + '\n\n' : '\n') +
+                        'We look forward to welcoming you soon!\n\n' +
+                        'Warm regards,\n' +
+                        'Team *' + SALON_NAME + '*';
                     var waPhone2 = (p.cust_mobile||'').replace(/[^0-9]/g,'');
                     var waBtn = waPhone2 ? '<a href="https://wa.me/91'+waPhone2+'?text='+encodeURIComponent(waMsg2)+'" target="_blank" style="background:#dcfce7;color:#15803d;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">&#128172; WA</a>' : '';
                     var walletBtn2 = '<button class="modalButtonCommon" data-href="customer_membership_view.php?cust_id='+p.cust_id+'" title="Wallet Ledger" style="background:#f3e8ff;color:#9333ea;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128179; Ledger</button>';
@@ -266,9 +390,9 @@ function loadReports() {
                     rows += '<tr>' +
                         '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+p.cust_name+'</td>' +
                         '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+p.package_name+'</td>' +
-                        '<td style="padding:11px 16px;color:var(--primary);font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.purchase_price).toFixed(2)+'</td>' +
-                        '<td style="padding:11px 16px;color:#059669;font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</td>' +
-                        '<td style="padding:11px 16px;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';border-bottom:1px solid #f1f5f9;">₹'+outstanding.toFixed(2)+'</td>' +
+                        '<td data-order="'+parseFloat(p.purchase_price)+'" style="padding:11px 16px;color:var(--primary);font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.purchase_price).toFixed(2)+'</td>' +
+                        '<td data-order="'+parseFloat(p.paid_amount||0)+'" style="padding:11px 16px;color:#059669;font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</td>' +
+                        '<td data-order="'+outstanding+'" style="padding:11px 16px;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';border-bottom:1px solid #f1f5f9;">₹'+outstanding.toFixed(2)+'</td>' +
                         '<td style="padding:11px 16px;font-size:12px;border-bottom:1px solid #f1f5f9;">'+mode+'</td>' +
                         '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+p.purchase_date+'</td>' +
                         '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+(p.expiry_date||'—')+'</td>' +
@@ -279,7 +403,41 @@ function loadReports() {
             } else {
                 rows = '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
             }
+            
             $('#pkg_report_body').html(rows);
+
+            if (pkgTable) {
+                pkgTable.destroy();
+            }
+
+            if (allPkgData.length > 0) {
+                pkgTable = $('#pkg_report_table').DataTable({
+                    responsive: true,
+                    pageLength: 10,
+                    order: [[6, 'desc']],
+                    columnDefs: [
+                        { orderable: false, targets: [9] }
+                    ]
+                });
+            } else {
+                pkgTable = null;
+            }
+
+            var pkgModes = [];
+            allPkgData.forEach(function(p){
+                var p_mode = (p.payment_mode || '—').trim().toUpperCase();
+                if(p_mode && p_mode !== '—' && pkgModes.indexOf(p_mode) === -1) {
+                    pkgModes.push(p_mode);
+                }
+            });
+            var pkgModeOptions = '<option value="">All Payment Modes</option>';
+            pkgModes.sort().forEach(function(mode){
+                pkgModeOptions += '<option value="'+mode+'">'+mode+'</option>';
+            });
+            $('#pkg_mode_filter').html(pkgModeOptions);
+
+            $('#pkg_status_filter').val('');
+            $('#pkg_mode_filter').val('');
 
             // Liability tab - service liability
             if(r.liability_rows && r.liability_rows.length > 0) {
@@ -327,12 +485,36 @@ function loadReports() {
 $('#btn_load_reports').click(loadReports);
 loadReports(); // auto load on page open
 
+// Bind Custom Filters for Memberships
+$('#mem_status_filter').on('change', function() {
+    if (memTable) {
+        memTable.column(8).search(this.value).draw();
+    }
+});
+$('#mem_mode_filter').on('change', function() {
+    if (memTable) {
+        memTable.column(7).search(this.value).draw();
+    }
+});
+
+// Bind Custom Filters for Packages
+$('#pkg_status_filter').on('change', function() {
+    if (pkgTable) {
+        pkgTable.column(8).search(this.value).draw();
+    }
+});
+$('#pkg_mode_filter').on('change', function() {
+    if (pkgTable) {
+        pkgTable.column(5).search(this.value).draw();
+    }
+});
+
 // CSV Export
 $('#btn_export_csv').click(function(){
     if(!allMembersData.length && !allPkgData.length) { alert('Load reports first.'); return; }
-    var csv = 'Customer,Mobile,Plan,Paid,Remaining,Wallet Credit,Status,Expiry\n';
+    var csv = 'Customer,Mobile,Plan,Purchase Date,Paid,Remaining,Wallet Credit,Status,Expiry\n';
     allMembersData.forEach(function(m){
-        csv += [m.cust_name,m.cust_mobile,m.plan_name,m.paid_amount,m.remaining_amount,m.wallet_credit,m.status,m.expiry_date||''].join(',') + '\n';
+        csv += [m.cust_name,m.cust_mobile,m.plan_name,m.start_date||'',m.paid_amount,m.remaining_amount,m.wallet_credit,m.status,m.expiry_date||''].join(',') + '\n';
     });
     csv += '\n\nCustomer,Mobile,Package,Price,Purchase Date,Expiry,Status\n';
     allPkgData.forEach(function(p){

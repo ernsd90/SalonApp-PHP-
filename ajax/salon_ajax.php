@@ -42,6 +42,14 @@ try {
     // Column already exists, ignore
 }
 try {
+    $conn->query("ALTER TABLE `hr_salon` ADD COLUMN `whatsapp_api_url` VARCHAR(500) NOT NULL DEFAULT '' AFTER `whatsapp_api`");
+} catch(Exception $e) {
+}
+try {
+    $conn->query("ALTER TABLE `hr_salon` ADD COLUMN `whatsapp_sender` VARCHAR(50) NOT NULL DEFAULT '' AFTER `whatsapp_api_url`");
+} catch(Exception $e) {
+}
+try {
     $conn->query("ALTER TABLE `hr_salon` ADD COLUMN `round_off` TINYINT(1) NOT NULL DEFAULT 0");
 } catch(Exception $e) {
     // Column already exists, ignore
@@ -98,7 +106,12 @@ function create_salon(){
             }
         }
 
-        $sql = "INSERT INTO `hr_salon` SET `salon_name`='".$salon_name."',`salon_address`='".$salon_address."',`salon_contact`='".$salon_contact."',`gst_enable`='".$gst_enable."',`salon_gst`='".$salon_gst."',`gst_percentage`='".$gst_percentage."',`include_gst`='".$include_gst."',`firm_name`='".$firm_name."',`whatsapp_enable`='".$whatsapp_enable."',`whatsapp_api`='".$whatsapp_api."',`make_enable`='".$make_enable."',`make_webhook_url`='".$make_webhook_url."', `salon_status`='".$salon_status."', `round_off`='".$round_off."', `google_review_link`='".$google_review_link."', `logo`='".$logo_path."'";
+        $whatsapp_enable = isset($whatsapp_enable) ? intval($whatsapp_enable) : 0;
+        $whatsapp_api_url = isset($whatsapp_api_url) ? mysqli_real_escape_string($GLOBALS['conn'], trim($whatsapp_api_url)) : '';
+        $whatsapp_sender = isset($whatsapp_sender) ? mysqli_real_escape_string($GLOBALS['conn'], trim($whatsapp_sender)) : '';
+        $whatsapp_api = isset($whatsapp_api) ? mysqli_real_escape_string($GLOBALS['conn'], trim($whatsapp_api)) : '';
+
+        $sql = "INSERT INTO `hr_salon` SET `salon_name`='".$salon_name."',`salon_address`='".$salon_address."',`salon_contact`='".$salon_contact."',`gst_enable`='".$gst_enable."',`salon_gst`='".$salon_gst."',`gst_percentage`='".$gst_percentage."',`include_gst`='".$include_gst."',`firm_name`='".$firm_name."',`whatsapp_enable`='".$whatsapp_enable."',`whatsapp_api`='".$whatsapp_api."',`whatsapp_api_url`='".$whatsapp_api_url."',`whatsapp_sender`='".$whatsapp_sender."',`make_enable`='".$make_enable."',`make_webhook_url`='".$make_webhook_url."', `salon_status`='".$salon_status."', `round_off`='".$round_off."', `google_review_link`='".$google_review_link."', `logo`='".$logo_path."'";
         insert_query($sql);
         $msg = "Salon Added Successfully";
     }
@@ -145,7 +158,12 @@ function update_salon(){
         }
     }
 
-	$sql = "UPDATE `hr_salon` SET `salon_name`='".$salon_name."',`salon_address`='".$salon_address."',`salon_contact`='".$salon_contact."',`gst_enable`='".$gst_enable."',`salon_gst`='".$salon_gst."',`gst_percentage`='".$gst_percentage."',`include_gst`='".$include_gst."',`firm_name`='".$firm_name."',`whatsapp_enable`='".$whatsapp_enable."',`whatsapp_api`='".$whatsapp_api."',`make_enable`='".$make_enable."',`make_webhook_url`='".$make_webhook_url."', `salon_status`='".$salon_status."', `round_off`='".$round_off."', `google_review_link`='".$google_review_link."', `logo`='".$logo_path."' Where salon_id = '".$salon_id."'";
+    $whatsapp_enable = isset($whatsapp_enable) ? intval($whatsapp_enable) : 0;
+    $whatsapp_api_url = isset($whatsapp_api_url) ? mysqli_real_escape_string($GLOBALS['conn'], trim($whatsapp_api_url)) : '';
+    $whatsapp_sender = isset($whatsapp_sender) ? mysqli_real_escape_string($GLOBALS['conn'], trim($whatsapp_sender)) : '';
+    $whatsapp_api = isset($whatsapp_api) ? mysqli_real_escape_string($GLOBALS['conn'], trim($whatsapp_api)) : '';
+
+	$sql = "UPDATE `hr_salon` SET `salon_name`='".$salon_name."',`salon_address`='".$salon_address."',`salon_contact`='".$salon_contact."',`gst_enable`='".$gst_enable."',`salon_gst`='".$salon_gst."',`gst_percentage`='".$gst_percentage."',`include_gst`='".$include_gst."',`firm_name`='".$firm_name."',`whatsapp_enable`='".$whatsapp_enable."',`whatsapp_api`='".$whatsapp_api."',`whatsapp_api_url`='".$whatsapp_api_url."',`whatsapp_sender`='".$whatsapp_sender."',`make_enable`='".$make_enable."',`make_webhook_url`='".$make_webhook_url."', `salon_status`='".$salon_status."', `round_off`='".$round_off."', `google_review_link`='".$google_review_link."', `logo`='".$logo_path."' Where salon_id = '".$salon_id."'";
     update_query($sql);
     
     // Update active session metadata in real-time if editing the currently active outlet

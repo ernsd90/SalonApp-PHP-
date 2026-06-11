@@ -26,13 +26,13 @@ include 'header.php';
             <table id="get_customer" class="table-modern" style="width: 100%;">
                 <thead>
                     <tr>
-                        <th style="width: 60px;">ID</th>
-                        <th>Full Name</th>
-                        <th>Mobile</th>
+                        <th>Client Details</th>
                         <th>Wallet Balance</th>
                         <th>Outstanding Debt</th>
+                        <th>Last Visit</th>
+                        <th>Lifetime Spend</th>
                         <th>Loyalty Points</th>
-                        <th style="width: 140px;">Actions</th>
+                        <th style="width: 180px;">Actions</th>
                     </tr>
                 </thead>
             </table>
@@ -59,6 +59,35 @@ include 'header.php';
 </div>
 
 <script>
+// Helper functions for premium initials avatars
+function getInitials(name) {
+    if (!name) return 'C';
+    var parts = name.split(' ');
+    var initials = parts[0].charAt(0);
+    if (parts.length > 1) {
+        initials += parts[parts.length - 1].charAt(0);
+    }
+    return initials.toUpperCase();
+}
+
+function getAvatarColor(name) {
+    var colors = [
+        { bg: '#fee2e2', text: '#dc2626' }, // Red
+        { bg: '#ffedd5', text: '#ea580c' }, // Orange
+        { bg: '#fef9c3', text: '#ca8a04' }, // Yellow
+        { bg: '#dcfce7', text: '#16a34a' }, // Green
+        { bg: '#e0f2fe', text: '#0284c7' }, // Blue
+        { bg: '#e0e7ff', text: '#4f46e5' }, // Indigo
+        { bg: '#f3e8ff', text: '#9333ea' }  // Purple
+    ];
+    if (!name) return colors[0];
+    var sum = 0;
+    for (var i = 0; i < name.length; i++) {
+        sum += name.charCodeAt(i);
+    }
+    return colors[sum % colors.length];
+}
+
 $(document).ready(function() {
     var get_customer = $('#get_customer').DataTable({
         "processing": true,
@@ -70,47 +99,59 @@ $(document).ready(function() {
             "data": { "method": "get_customer" }
         },
         "columns": [
-            { "data": "cust_id" },
             { 
                 "data": "cust_name",
                 "render": function(data, type, row) {
-                    return '<div style="font-weight:600;"><i class="ph ph-user-circle" style="color:var(--text-muted); font-size: 18px; vertical-align:middle; margin-right:6px;"></i> ' + data + '</div>';
+                    var initials = getInitials(data);
+                    var colors = getAvatarColor(data);
+                    return `
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 36px; height: 36px; border-radius: 50%; background: ${colors.bg}; color: ${colors.text}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0;">
+                                ${initials}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; font-size: 14px; color: var(--text-main);">${data}</div>
+                                <div style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+                                    <i class="ph ph-phone" style="font-size: 12px; vertical-align: middle;"></i> ${row.cust_mobile}
+                                </div>
+                            </div>
+                        </div>
+                    `;
                 }
             },
-            { "data": "cust_mobile" },
             { 
                "data": "cust_wallet",
                "render": function(data) {
-                   if(data > 0) return '<span style="color:var(--success); font-weight:600;">₹' + data + '</span>';
-                   return '<span style="color:var(--text-muted);">₹0</span>';
+                   var val = parseFloat(data);
+                   if(val > 0) return '<span style="display:inline-flex;align-items:center;background:#dcfce7;color:#16a34a;padding:4px 10px;border-radius:12px;font-size:13px;font-weight:600;">₹' + val.toFixed(2) + '</span>';
+                   return '<span style="color:var(--text-muted);font-size:13px;">₹0.00</span>';
                }
             },
             { 
                "data": "cust_outstanding",
                "render": function(data) {
-                   if(data > 0) return '<span style="color:var(--danger); font-weight:600;">₹' + data + '</span>';
-                   return '<span style="color:var(--text-muted);">₹0</span>';
+                   var val = parseFloat(data);
+                   if(val > 0) return '<span style="display:inline-flex;align-items:center;background:#fee2e2;color:#dc2626;padding:4px 10px;border-radius:12px;font-size:13px;font-weight:600;">₹' + val.toFixed(2) + '</span>';
+                   return '<span style="color:var(--text-muted);font-size:13px;">₹0.00</span>';
                }
             },
+            { "data": "last_visit" },
+            { "data": "lifetime_spend" },
             { 
                "data": "loyalty_points",
-               "orderable": false,
                "render": function(data) {
                    var pts = parseInt(data);
-                   if(pts > 0) return '<span style="color:#7c3aed; font-weight:600;"><i class="ph-fill ph-crown" style="font-size:14px; vertical-align:middle; margin-right:4px;"></i> ' + data + '</span>';
-                   return '<span style="color:var(--text-muted);">0 pts</span>';
+                   if(pts > 0) return '<span style="display:inline-flex;align-items:center;gap:4px;background:#f3e8ff;color:#7c3aed;padding:4px 10px;border-radius:12px;font-size:13px;font-weight:600;"><i class="ph-fill ph-crown" style="font-size:12px;"></i> ' + data + '</span>';
+                   return '<span style="color:var(--text-muted);font-size:13px;">0 pts</span>';
                }
             },
             { 
                "data": "action",
                "render": function(data, type, row) {
                     // Transform legacy buttons to premium aesthetic
-                    var transformed = data.replace(/btn-gradient-info/g, 'btn-edit')
+                    return data.replace(/btn-gradient-info/g, 'btn-edit')
                                .replace(/btn-gradient-success/g, 'btn-view')
                                .replace(/btn-gradient-danger/g, 'btn-delete');
-                    // Add membership profile button
-                    var memBtn = '<button class="btn-view modalButtonCommon" data-href="customer_membership_view.php?cust_id=' + row.cust_id + '" title="Membership & Wallet" style="background:#e0e7ff;color:#4f46e5;"><i class="ph ph-identification-badge"></i></button> ';
-                    return memBtn + transformed;
                }
             }
         ]
@@ -158,12 +199,65 @@ $(document).on('submit', 'form.ajax-form', function(e){
 
 <!-- Add V3 Premium button fixes for DataTables return rows -->
 <style>
-.btn-edit { background: #e0e7ff; color: #4f46e5; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; margin-right: 4px; font-size: 13px; cursor: pointer; transition: 0.2s; }
-.btn-edit:hover { background: #c7d2fe; }
-.btn-view { background: #dcfce7; color: #16a34a; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; margin-right: 4px; font-size: 13px; cursor: pointer; transition: 0.2s; }
-.btn-view:hover { background: #bbf7d0; }
-.btn-delete { background: #fee2e2; color: #dc2626; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 600; margin-right: 4px; font-size: 13px; cursor: pointer; transition: 0.2s; }
-.btn-delete:hover { background: #fecaca; }
+/* Premium action buttons styling */
+.btn-edit, .btn-view, .btn-delete, .btn-wa, .btn-followup {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 32px !important;
+    height: 32px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    font-size: 15px !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+.btn-edit:hover, .btn-view:hover, .btn-delete:hover, .btn-wa:hover, .btn-followup:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+.btn-edit { background: #e0e7ff !important; color: #4f46e5 !important; margin-right: 4px; }
+.btn-edit:hover { background: #c7d2fe !important; }
+.btn-view { background: #dcfce7 !important; color: #16a34a !important; margin-right: 4px; }
+.btn-view:hover { background: #bbf7d0 !important; }
+.btn-delete { background: #fee2e2 !important; color: #dc2626 !important; margin-right: 4px; }
+.btn-delete:hover { background: #fecaca !important; }
+.btn-wa { background: #25D366 !important; color: white !important; margin-right: 4px; }
+.btn-wa:hover { background: #22c55e !important; }
+.btn-followup { background: #ffedd5 !important; color: #ea580c !important; margin-right: 4px; }
+.btn-followup:hover { background: #fed7aa !important; }
+
+/* Custom Search & Filters layout for Premium look */
+.dataTables_wrapper .dataTables_filter input {
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 13.5px;
+    background: #f8fafc;
+    transition: all 0.2s ease;
+    outline: none;
+}
+.dataTables_wrapper .dataTables_filter input:focus {
+    border-color: var(--primary);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+}
+.dataTables_wrapper .dataTables_length select {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13.5px;
+    background: #f8fafc;
+    outline: none;
+}
+.table-modern tbody tr {
+    transition: background 0.15s ease;
+}
+.table-modern tbody tr:hover td {
+    background: #fcfdfe !important;
+}
 </style>
 
 <?php include 'footer.php'; ?>

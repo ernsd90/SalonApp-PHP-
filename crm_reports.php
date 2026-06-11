@@ -145,6 +145,8 @@
             </div>
         </div>
 
+
+
     </div>
 </div>
 
@@ -289,6 +291,8 @@ $(document).ready(function() {
         "order": [[ 3, "desc" ]]
     });
 
+
+
     // Tab Logic
     $('.tab-btn').click(function() {
         $('.tab-btn').removeClass('active').css({'color': 'var(--text-muted)', 'border-bottom-color': 'transparent', 'font-weight': '600'});
@@ -342,8 +346,6 @@ $(document).ready(function() {
         btn.html('<i class="ph ph-spinner ph-spin"></i> Exporting...');
         btn.prop('disabled', true);
         
-        // We'll call the API but with length=-1 to get all records, or a specific CSV generator
-        // To be safe, we just use length=-1
         $.ajax({
             url: "ajax/crm_ajax.php",
             type: "POST",

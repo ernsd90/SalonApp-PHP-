@@ -362,8 +362,9 @@ function create_staff(){
         $department = mysqli_real_escape_string($conn, $department ?? '');
         $gender = mysqli_real_escape_string($conn, $gender ?? '');
         $seniority = mysqli_real_escape_string($conn, $seniority ?? 'Junior');
+        $notify_daily_sale = isset($notify_daily_sale) && $notify_daily_sale == 1 ? 1 : 0;
         
-        $sql = "INSERT INTO `hr_staff` SET `staff_mob`='".$staff_mob."',`staff_name`='".$staff_name."',`joining_date`='".$joining_date."',`staff_salary`='".$staff_salary."',`staff_status`='".$staff_status."',`salon_id`='".$salon_id."',`staff_role`='".$staff_role."',`department`='".$department."',`gender`='".$gender."',`seniority`='".$seniority."'";
+        $sql = "INSERT INTO `hr_staff` SET `staff_mob`='".$staff_mob."',`staff_name`='".$staff_name."',`joining_date`='".$joining_date."',`staff_salary`='".$staff_salary."',`staff_status`='".$staff_status."',`salon_id`='".$salon_id."',`staff_role`='".$staff_role."',`department`='".$department."',`gender`='".$gender."',`seniority`='".$seniority."',`notify_daily_sale`='".$notify_daily_sale."'";
         insert_query($sql);
         $msg = "Stylist Added Successfully";
     }
@@ -381,8 +382,9 @@ function update_staff(){
     $department = mysqli_real_escape_string($conn, $department ?? '');
     $gender = mysqli_real_escape_string($conn, $gender ?? '');
     $seniority = mysqli_real_escape_string($conn, $seniority ?? 'Junior');
+    $notify_daily_sale = isset($notify_daily_sale) && $notify_daily_sale == 1 ? 1 : 0;
 
-	$sql = "UPDATE `hr_staff` SET `staff_mob`='".$staff_mob."',`staff_name`='".$staff_name."',`joining_date`='".$joining_date."',`staff_salary`='".$staff_salary."',`staff_status`='".$staff_status."',`staff_role`='".$staff_role."',`department`='".$department."',`gender`='".$gender."',`seniority`='".$seniority."' Where staff_id = '".$staff_id."'";
+	$sql = "UPDATE `hr_staff` SET `staff_mob`='".$staff_mob."',`staff_name`='".$staff_name."',`joining_date`='".$joining_date."',`staff_salary`='".$staff_salary."',`staff_status`='".$staff_status."',`staff_role`='".$staff_role."',`department`='".$department."',`gender`='".$gender."',`seniority`='".$seniority."',`notify_daily_sale`='".$notify_daily_sale."' Where staff_id = '".$staff_id."'";
     update_query($sql);
     $msg = "User Updated Successfully";
 
@@ -418,10 +420,14 @@ function get_staff(){
             if(check_user_permission("staff","edit",$user_id)){
                 $edit_btn = '<button type="button" class="btn btn-gradient-info btn-xs  modalButtonCommon" data-toggle="modal" data-href="staff_edit.php?staff_id='.$staff_id.'">Edit</button>';
             }
+
+            $report_url = DOMAIN_SOFTWARE . 'staff_report.php?staff_id=' . $staff_id . '&mob=' . urlencode($users['staff_mob']);
+            $report_btn = '<a href="' . $report_url . '" target="_blank" class="btn btn-xs" style="background:linear-gradient(135deg,#6366f1,#a855f7);color:white;padding:4px 10px;border-radius:6px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;"><i class="ph ph-chart-bar"></i> Report</a>';
+            $wa_btn = '<button type="button" onclick="sendStaffReportWa(this, ' . $staff_id . ')" class="btn btn-xs" style="background:#25D366;color:white;padding:4px 10px;border-radius:6px;font-size:12px;border:none;display:inline-flex;align-items:center;gap:4px;cursor:pointer;" title="Send Report via WhatsApp"><i class="ph ph-whatsapp-logo"></i> WhatsApp</button>';
     
             $userdata[$i] = $users;
             $userdata[$i]['staff_status'] = $users['staff_status'];
-            $userdata[$i]['action'] = $edit_btn;
+            $userdata[$i]['action'] = '<div style="display:flex;gap:6px;align-items:center;">' . $edit_btn . $report_btn . $wa_btn . '</div>';
            
     
             $i++;
@@ -595,6 +601,119 @@ function delete_appointment(){
     $msg = "Appointment Deleted Successfully";
 
     return array("msg" => $msg,"error"=>$error);
+}
+
+function save_global_target() {
+    global $salon_id, $conn;
+    $multiplier = floatval($_POST['multiplier'] ?? 5);
+    if ($multiplier <= 0) $multiplier = 1;
+
+    // Validate and sanitise components
+    $allowed_components = ['services', 'redemptions', 'packages', 'memberships', 'products'];
+    $raw_components = $_POST['components'] ?? '';
+    $parts = array_filter(array_map('trim', explode(',', $raw_components)));
+    $valid = array_intersect($parts, $allowed_components);
+    $components_str = !empty($valid) ? implode(',', $valid) : 'services';
+
+    $sql = "UPDATE `hr_salon` SET 
+        `staff_target_multiplier`='" . mysqli_real_escape_string($conn, $multiplier) . "',
+        `staff_target_components`='" . mysqli_real_escape_string($conn, $components_str) . "'
+        WHERE salon_id='" . mysqli_real_escape_string($conn, $salon_id) . "'";
+    update_query($sql);
+    return ['error' => 0, 'msg' => 'Target settings saved', 'multiplier' => $multiplier, 'components' => $components_str];
+}
+
+function get_global_target() {
+    global $salon_id;
+    $row = select_row("SELECT staff_target_multiplier, staff_target_components FROM hr_salon WHERE salon_id='" . mysqli_real_escape_string($GLOBALS['conn'], $salon_id) . "'");
+    $multiplier  = $row ? floatval($row['staff_target_multiplier']) : 5;
+    $components  = $row ? ($row['staff_target_components'] ?: 'services,redemptions,packages,memberships,products') : 'services,redemptions,packages,memberships,products';
+    if ($multiplier <= 0) $multiplier = 5;
+    return ['error' => 0, 'multiplier' => $multiplier, 'components' => $components];
+}
+
+function send_staff_report_wa() {
+    global $conn, $salon_id, $user_id;
+    $staff_id = intval($_POST['staff_id'] ?? 0);
+    if ($staff_id <= 0) {
+        return ['error' => 1, 'msg' => 'Invalid staff ID'];
+    }
+
+    $staff = select_row("SELECT * FROM `hr_staff` WHERE `staff_id` = '$staff_id' AND `salon_id` = '$salon_id'");
+    if (!$staff) {
+        return ['error' => 1, 'msg' => 'Staff member not found'];
+    }
+
+    $salon = select_row("SELECT salon_name, logo, whatsapp_enable, whatsapp_api, whatsapp_api_url, whatsapp_sender FROM `hr_salon` WHERE `salon_id` = '$salon_id'");
+    if (!$salon) {
+        return ['error' => 1, 'msg' => 'Salon not found'];
+    }
+
+    if (intval($salon['whatsapp_enable']) !== 1 || empty($salon['whatsapp_api_url'])) {
+        return ['error' => 1, 'msg' => 'WhatsApp sharing is not enabled or configured for this salon.'];
+    }
+
+    $raw_mob = $staff['staff_mob'];
+    $clean_mob = preg_replace('/\D/', '', $raw_mob);
+    if (strlen($clean_mob) === 10) {
+        $clean_mob = '91' . $clean_mob;
+    }
+
+    if (strlen($clean_mob) !== 12 || substr($clean_mob, 0, 2) !== '91') {
+        return ['error' => 1, 'msg' => 'Invalid mobile number format for WhatsApp. Make sure it is a 10-digit number.'];
+    }
+
+    $staff_name = $staff['staff_name'];
+    $salon_name = $salon['salon_name'];
+
+    // Construct professional message
+    $message = "Hello {$staff_name},\n\n";
+    $message .= "Here is your performance and sales report link for *{$salon_name}*.\n\n";
+    $message .= "Click the button below to view your daily/monthly sales breakdown, targets achieved, repeat clients, and KPIs.\n\n";
+    $message .= "Best regards,\n";
+    $message .= "*{$salon_name}*";
+
+    $report_url = DOMAIN_SOFTWARE . 'staff_report.php?staff_id=' . $staff_id . '&mob=' . urlencode($raw_mob);
+
+    $buttons = [
+        [
+            "type" => "url",
+            "displayText" => "View Report",
+            "url" => $report_url
+        ]
+    ];
+
+    $salon_logo = $salon['logo'] ?? '';
+    $image_url = '';
+    if (!empty($salon_logo)) {
+        $image_url = rtrim(DOMAIN_SOFTWARE, '/') . '/' . (strpos($salon_logo, 'uploads/') === 0 ? '' : 'images/') . ltrim($salon_logo, '/');
+        // Fix for localhost testing: WhatsApp API cannot fetch images from localhost
+        if (strpos($image_url, 'localhost') !== false || strpos($image_url, '127.0.0.1') !== false) {
+            $image_url = 'https://v2.salonapp.org/uploads/logo_1779732430_6a148fce05f35.png'; // Generic logo placeholder
+        }
+    } else {
+        $image_url = 'https://v2.salonapp.org/uploads/logo_1779732430_6a148fce05f35.png'; // Fallback if no logo
+    }
+
+    $endpoint = $salon['whatsapp_api_url'];
+    $api_key = $salon['whatsapp_api'] ?? '';
+    $sender = $salon['whatsapp_sender'] ?? '';
+
+    $res = sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $clean_mob, $message, $buttons, $image_url);
+
+    if (isset($res['success']) && $res['success']) {
+        // Log in the whatsapp logs table
+        insert_query("INSERT INTO hr_whatsapp_logs SET 
+            salon_id='$salon_id', 
+            user_id='$user_id', 
+            module='Staff Report Share', 
+            message='Sent WhatsApp report to " . mysqli_real_escape_string($conn, $staff_name) . " ({$clean_mob})'");
+
+        return ['error' => 0, 'msg' => 'Report sent successfully to ' . $staff_name . ' via WhatsApp.'];
+    } else {
+        $err_details = $res['error'] ? $res['error'] : ($res['response'] ? $res['response'] : 'Unknown error');
+        return ['error' => 1, 'msg' => 'Failed to send WhatsApp message. Details: ' . $err_details];
+    }
 }
 
 ?>
