@@ -426,8 +426,7 @@ if(isset($_POST['cust_mob'])){
         // ─────────────────────────────────────────────────────────────────────
 
         $whatsapp_api_success = false;
-        if($salon_id != 80){
-            if($whatsapp_enable == 1 && !empty($whatsapp_api_url)){
+        if($whatsapp_enable == 1 && !empty($whatsapp_api_url)){
                 
                 // Clean and validate the mobile number
                 $clean_mob = preg_replace('/\D/', '', $cust_mob);
@@ -450,29 +449,20 @@ if(isset($_POST['cust_mob'])){
                     
                     $wa_short_inv_url = $short_inv_url;
                     $wa_feedback_url = $feedback_url;
-                    
-                    // Fix for localhost testing: WhatsApp API silently rejects messages with localhost URLs in buttons
-                    if (strpos($wa_short_inv_url, 'localhost') !== false || strpos($wa_short_inv_url, '127.0.0.1') !== false) {
-                        $wa_short_inv_url = str_replace(['http://localhost', 'http://127.0.0.1'], 'https://v2.salonapp.org', $wa_short_inv_url);
-                    }
-                    if (strpos($wa_feedback_url, 'localhost') !== false || strpos($wa_feedback_url, '127.0.0.1') !== false) {
-                        $wa_feedback_url = str_replace(['http://localhost', 'http://127.0.0.1'], 'https://v2.salonapp.org', $wa_feedback_url);
-                    }
 
                     $api_res = sendWhatsappButtonApi($whatsapp_api_url, $whatsapp_api, $whatsapp_sender, $clean_mob, $message, $wa_short_inv_url, $wa_feedback_url, $image_url);
                     if(isset($api_res['success']) && $api_res['success']) {
                         $whatsapp_api_success = true;
                     }
-                    // Debug logging
-                    $log = "[" . date('Y-m-d H:i:s') . "] Invoice: $invoice_id | Mob: $clean_mob | Res: " . json_encode($api_res) . "\n";
-                    file_put_contents('whatsapp_debug.log', $log, FILE_APPEND);
-                } else {
-                    $log = "[" . date('Y-m-d H:i:s') . "] Invoice: $invoice_id | Mob validation failed: orig=$cust_mob, clean=$clean_mob\n";
-                    file_put_contents('whatsapp_debug.log', $log, FILE_APPEND);
-                }
-            }else{
-                // sendapisms($cust_mob,$message,$senderid);
+                // Debug logging
+                $log = "[" . date('Y-m-d H:i:s') . "] Invoice: $invoice_id | Mob: $clean_mob | Res: " . json_encode($api_res ?? null) . "\n";
+                file_put_contents('whatsapp_debug.log', $log, FILE_APPEND);
+            } else {
+                $log = "[" . date('Y-m-d H:i:s') . "] Invoice: $invoice_id | Mob validation failed: orig=$cust_mob, clean=$clean_mob\n";
+                file_put_contents('whatsapp_debug.log', $log, FILE_APPEND);
             }
+        }else{
+            // sendapisms($cust_mob,$message,$senderid);
         }
 
         // ── Make.com webhook ──────────────────────────────────────────────────

@@ -14,7 +14,7 @@ if(isset($_GET['view']) && $_GET['view'] == 1){
 }
 
 if(is_numeric($invoice_id)){
-    $salon = select_row("SELECT salon_name,salon_address,salon_contact,salon_gst,gst_percentage,include_gst,logo,firm_name FROM `hr_salon` WHERE `salon_id` = $salon_id");
+    $salon = select_row("SELECT salon_name,salon_address,salon_contact,salon_gst,gst_percentage,include_gst,logo,firm_name,whatsapp_enable,whatsapp_api,whatsapp_api_url,whatsapp_sender FROM `hr_salon` WHERE `salon_id` = $salon_id");
     if($salon) extract($salon);
     
     $invoice_data = select_row("SELECT * FROM `hr_invoice` where invoice_id='".$invoice_id."' ");
@@ -47,7 +47,7 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
     }
     if (empty($wa_msg) && !empty($invoice_data)) {
         $share_token = function_exists('getInvoiceShareToken') ? getInvoiceShareToken($invoice_id) : $invoice_id;
-        $invoice_url = DOMAIN_SOFTWARE . "inv.php?t=" . $share_token;
+        $invoice_url = rtrim(DOMAIN_SOFTWARE, '/') . "/i.php?t=" . $share_token;
         $feedback_url = DOMAIN_SOFTWARE . "feedback.php?inv=" . $invoice_id;
         $s_name = $salon['salon_name'] ?? 'Our Salon';
         
@@ -107,6 +107,8 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
             $wa_msg .= "Your bill for *Rs." . number_format($invoice_data['grand_total'] ?? 0, 2) . "* has been generated.\n";
             $wa_msg .= "Mode   : " . ucfirst(strtolower($pm_mode)) . "\n\n";
         }
+        $wa_msg_api = $wa_msg; // Copy before adding links for API usage
+        
         $wa_msg .= "🧾 View Receipt: {$invoice_url}\n\n";
         
         if ($loyalty_on) {
@@ -120,6 +122,7 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
             }
         }
         
+        $wa_msg_api .= "⭐ We'd love your feedback!";
         $wa_msg .= "⭐ We'd love your feedback! Please rate your experience here:\n{$feedback_url}";
     }
     
@@ -128,6 +131,35 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
         $clean_phone = '91' . $clean_phone;
     }
     
+    $whatsapp_enable = $salon['whatsapp_enable'] ?? 0;
+    $whatsapp_api_url = $salon['whatsapp_api_url'] ?? '';
+    $whatsapp_api = $salon['whatsapp_api'] ?? '';
+    $whatsapp_sender = $salon['whatsapp_sender'] ?? '';
+    
+    // Use API if enabled and number is valid
+    if ($whatsapp_enable == 1 && !empty($whatsapp_api_url) && strlen($clean_phone) === 12 && substr($clean_phone, 0, 2) === '91') {
+        $image_url = '';
+        if (!empty($salon['logo'])) {
+            $image_url = rtrim(DOMAIN_SOFTWARE, '/') . '/' . (strpos($salon['logo'], 'uploads/') === 0 ? '' : 'images/') . ltrim($salon['logo'], '/');
+            if (strpos($image_url, 'localhost') !== false || strpos($image_url, '127.0.0.1') !== false) {
+                $image_url = 'https://v2.salonapp.org/uploads/logo_1779732430_6a148fce05f35.png';
+            }
+        } else {
+            $image_url = 'https://v2.salonapp.org/uploads/logo_1779732430_6a148fce05f35.png';
+        }
+        
+        // Prefer the link-free msg copy if we built it here, otherwise use what was passed
+        $api_msg = isset($wa_msg_api) ? $wa_msg_api : $wa_msg;
+        
+        $api_res = sendWhatsappButtonApi($whatsapp_api_url, $whatsapp_api, $whatsapp_sender, $clean_phone, $api_msg, $invoice_url, $feedback_url, $image_url);
+        
+        if (isset($api_res['success']) && $api_res['success']) {
+            echo '<script>alert("WhatsApp message sent successfully via API!"); window.close();</script>';
+            exit;
+        }
+    }
+    
+    // Fallback to manual browser popup
     $wa_link = 'https://api.whatsapp.com/send?phone=' . $clean_phone . '&text=' . rawurlencode($wa_msg);
     header("Location: " . $wa_link);
     exit;
@@ -443,7 +475,7 @@ if (empty($wa_phone) && !empty($invoice_data['cust_mob'])) {
 }
 if (empty($wa_msg) && !empty($invoice_data)) {
     $share_token = function_exists('getInvoiceShareToken') ? getInvoiceShareToken($invoice_id) : $invoice_id;
-    $invoice_url = DOMAIN_SOFTWARE . "inv.php?t=" . $share_token;
+    $invoice_url = rtrim(DOMAIN_SOFTWARE, '/') . "/i.php?t=" . $share_token;
     $feedback_url = DOMAIN_SOFTWARE . "feedback.php?inv=" . $invoice_id;
     $s_name = $salon['salon_name'] ?? 'Our Salon';
     
