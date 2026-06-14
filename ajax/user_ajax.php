@@ -424,10 +424,11 @@ function get_staff(){
             $report_url = DOMAIN_SOFTWARE . 'staff_report.php?staff_id=' . $staff_id . '&mob=' . urlencode($users['staff_mob']);
             $report_btn = '<a href="' . $report_url . '" target="_blank" class="btn btn-xs" style="background:linear-gradient(135deg,#6366f1,#a855f7);color:white;padding:4px 10px;border-radius:6px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;"><i class="ph ph-chart-bar"></i> Report</a>';
             $wa_btn = '<button type="button" onclick="sendStaffReportWa(this, ' . $staff_id . ')" class="btn btn-xs" style="background:#25D366;color:white;padding:4px 10px;border-radius:6px;font-size:12px;border:none;display:inline-flex;align-items:center;gap:4px;cursor:pointer;" title="Send Report via WhatsApp"><i class="ph ph-whatsapp-logo"></i> WhatsApp</button>';
+            $incentive_btn = '<button type="button" onclick="openIncentiveModal(' . $staff_id . ', \'' . addslashes($users['staff_name']) . '\')" class="btn btn-xs" style="background:linear-gradient(135deg,#f59e0b,#f97316);color:white;padding:4px 10px;border-radius:6px;font-size:12px;border:none;display:inline-flex;align-items:center;gap:4px;cursor:pointer;" title="Incentive Settings"><i class="ph ph-lightning"></i> Incentive</button>';
     
             $userdata[$i] = $users;
             $userdata[$i]['staff_status'] = $users['staff_status'];
-            $userdata[$i]['action'] = '<div style="display:flex;gap:6px;align-items:center;">' . $edit_btn . $report_btn . $wa_btn . '</div>';
+            $userdata[$i]['action'] = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' . $edit_btn . $report_btn . $wa_btn . $incentive_btn . '</div>';
            
     
             $i++;
@@ -666,22 +667,16 @@ function send_staff_report_wa() {
     $staff_name = $staff['staff_name'];
     $salon_name = $salon['salon_name'];
 
+    $report_url = DOMAIN_SOFTWARE . 'staff_report.php?staff_id=' . $staff_id . '&mob=' . urlencode($raw_mob);
+
     // Construct professional message
     $message = "Hello {$staff_name},\n\n";
     $message .= "Here is your performance and sales report link for *{$salon_name}*.\n\n";
-    $message .= "Click the button below to view your daily/monthly sales breakdown, targets achieved, repeat clients, and KPIs.\n\n";
-    $message .= "Best regards,\n";
-    $message .= "*{$salon_name}*";
+    $message .= "View your daily/monthly sales breakdown, targets achieved, repeat clients, and KPIs here:\n";
+    $message .= "👉 {$report_url}\n\n";
+    $message .= "Best regards,";
 
-    $report_url = DOMAIN_SOFTWARE . 'staff_report.php?staff_id=' . $staff_id . '&mob=' . urlencode($raw_mob);
-
-    $buttons = [
-        [
-            "type" => "url",
-            "displayText" => "View Report",
-            "url" => $report_url
-        ]
-    ];
+    $buttons = []; // No longer used, but kept for function signature compatibility
 
     $salon_logo = $salon['logo'] ?? '';
     $image_url = '';
@@ -699,7 +694,7 @@ function send_staff_report_wa() {
     $api_key = $salon['whatsapp_api'] ?? '';
     $sender = $salon['whatsapp_sender'] ?? '';
 
-    $res = sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $clean_mob, $message, $buttons, $image_url);
+    $res = sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $clean_mob, $message, $buttons, $image_url, $salon_name);
 
     if (isset($res['success']) && $res['success']) {
         // Log in the whatsapp logs table
