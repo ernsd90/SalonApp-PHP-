@@ -403,10 +403,7 @@ if(isset($_POST['cust_mob'])){
             }
             $message .= "\n";
         }
-        if ($whatsapp_enable != 1) {
-            $message .= "View Receipt: {$short_inv_url}\n\n";
-        }
-        
+        $message .= "View Receipt: {$short_inv_url}\n\n";
         if ($loyalty_on) {
             $message .= "Loyalty Points:\n";
             $message .= "- Earned this visit: " . number_format($pts_earned, 0) . " pts\n";
@@ -418,11 +415,7 @@ if(isset($_POST['cust_mob'])){
             }
         }
         
-        if ($whatsapp_enable != 1) {
-            $message .= "We'd love your feedback! Please rate your experience here:\n{$feedback_url}";
-        } else {
-            $message .= "We'd love your feedback!";
-        }
+        $message .= "We'd love your feedback! Please rate your experience here:\n{$feedback_url}";
         // ─────────────────────────────────────────────────────────────────────
 
         $whatsapp_api_success = false;

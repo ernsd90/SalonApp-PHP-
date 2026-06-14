@@ -113,7 +113,6 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
             $wa_msg .= "Your bill for *Rs." . number_format($invoice_data['grand_total'] ?? 0, 2) . "* has been generated.\n";
             $wa_msg .= "Mode   : " . ucfirst(strtolower($pm_mode)) . "\n\n";
         }
-        $wa_msg_api = $wa_msg; // Copy before adding links for API usage
         
         $wa_msg .= "🧾 View Receipt: {$invoice_url}\n\n";
         
@@ -128,7 +127,6 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
             }
         }
         
-        $wa_msg_api .= "⭐ We'd love your feedback!";
         $wa_msg .= "⭐ We'd love your feedback! Please rate your experience here:\n{$feedback_url}";
     }
     
@@ -154,8 +152,8 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
             $image_url = 'https://v2.salonapp.org/uploads/logo_1779732430_6a148fce05f35.png';
         }
         
-        // Prefer the link-free msg copy if we built it here, otherwise use what was passed
-        $api_msg = isset($wa_msg_api) ? $wa_msg_api : $wa_msg;
+        // Pass the full message (including links) to the API
+        $api_msg = $wa_msg;
         
         $api_res = sendWhatsappButtonApi($whatsapp_api_url, $whatsapp_api, $whatsapp_sender, $clean_phone, $api_msg, $invoice_url, $feedback_url, $image_url);
         

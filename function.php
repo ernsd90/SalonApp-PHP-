@@ -286,12 +286,15 @@ function sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $me
         "api_key" => $api_key,
         "sender" => $sender,
         "number" => $number,
-        "message" => $message,
-        "button" => $buttons
+        "message" => $message
     ];
     
-    if (!empty($image_url)) {
-        $payload["image"] = $image_url;
+    // Only include buttons and image if the endpoint explicitly supports them (send-button)
+    if (strpos($endpoint, 'send-button') !== false) {
+        $payload["button"] = $buttons;
+        if (!empty($image_url)) {
+            $payload["image"] = $image_url;
+        }
     }
 
     $json_payload = json_encode($payload);
