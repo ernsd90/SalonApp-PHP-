@@ -7,10 +7,16 @@ $salon_id = get_session_data('salon_id');
 if(isset($_GET['view']) && $_GET['view'] == 1){
     $raw_id = $_GET['invoice_id'];
     $invoice_id = is_numeric($raw_id) ? intval($raw_id) : intval(base64_decode($raw_id));
-    $inv_salon = select_row("SELECT salon_id FROM hr_invoice where invoice_id='".mysqli_real_escape_string($conn, $invoice_id)."' ");
-    if($inv_salon) extract($inv_salon);
 }else{
     $invoice_id = $_GET['invoice_id'];
+}
+
+// Always ensure we are using the salon_id that belongs to the invoice
+if(!empty($invoice_id)) {
+    $inv_salon = select_row("SELECT salon_id FROM hr_invoice where invoice_id='".mysqli_real_escape_string($conn, $invoice_id)."' ");
+    if($inv_salon) {
+        $salon_id = $inv_salon['salon_id'];
+    }
 }
 
 if(is_numeric($invoice_id)){
