@@ -250,14 +250,6 @@ function sendBillToMake($cust_name, $cust_phone, $total_amount, $payment_method,
  * @return array
  */
 function sendWhatsappButtonApi($endpoint, $api_key, $sender, $number, $message, $invoice_url = '', $feedback_url = '', $image_url = '', $footer = '') {
-    // Since we are switching to the Text API, append the URLs to the message body.
-    if (!empty($invoice_url)) {
-        $message .= "\n\n🧾 View Receipt: " . $invoice_url;
-    }
-    if (!empty($feedback_url)) {
-        $message .= "\n\n⭐ We'd love your feedback! Please rate your experience here:\n" . $feedback_url;
-    }
-    
     $buttons = []; // No longer used for Text API, but kept for compatibility
     return sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $message, $buttons, $image_url, $footer);
 }

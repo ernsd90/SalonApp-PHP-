@@ -140,31 +140,37 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
     $whatsapp_api = $salon['whatsapp_api'] ?? '';
     $whatsapp_sender = $salon['whatsapp_sender'] ?? '';
     
-    // Use API if enabled and number is valid
-    if ($whatsapp_enable == 1 && !empty($whatsapp_api_url) && strlen($clean_phone) === 12 && substr($clean_phone, 0, 2) === '91') {
-        $image_url = '';
-        if (!empty($salon['logo'])) {
-            $image_url = rtrim(DOMAIN_SOFTWARE, '/') . '/' . (strpos($salon['logo'], 'uploads/') === 0 ? '' : 'images/') . ltrim($salon['logo'], '/');
-            if (strpos($image_url, 'localhost') !== false || strpos($image_url, '127.0.0.1') !== false) {
+    // Use API if enabled and configured
+    if ($whatsapp_enable == 1 && !empty($whatsapp_api_url)) {
+        if (strlen($clean_phone) === 12 && substr($clean_phone, 0, 2) === '91') {
+            $image_url = '';
+            if (!empty($salon['logo'])) {
+                $image_url = rtrim(DOMAIN_SOFTWARE, '/') . '/' . (strpos($salon['logo'], 'uploads/') === 0 ? '' : 'images/') . ltrim($salon['logo'], '/');
+                if (strpos($image_url, 'localhost') !== false || strpos($image_url, '127.0.0.1') !== false) {
+                    $image_url = 'https://v2.salonapp.org/uploads/logo_1779732430_6a148fce05f35.png';
+                }
+            } else {
                 $image_url = 'https://v2.salonapp.org/uploads/logo_1779732430_6a148fce05f35.png';
             }
+            
+            // Pass the full message (including links) to the API
+            $api_msg = $wa_msg;
+            $footer_text = $salon['salon_name'] ?? 'SalonApp';
+            
+            $api_res = sendWhatsappButtonApi($whatsapp_api_url, $whatsapp_api, $whatsapp_sender, $clean_phone, $api_msg, $invoice_url, $feedback_url, $image_url, $footer_text);
+            
+            if (isset($api_res['success']) && $api_res['success']) {
+                echo '<script>alert("WhatsApp message sent successfully via API!"); window.close();</script>';
+            } else {
+                echo '<script>alert("Failed to send WhatsApp message via API."); window.close();</script>';
+            }
         } else {
-            $image_url = 'https://v2.salonapp.org/uploads/logo_1779732430_6a148fce05f35.png';
+            echo '<script>alert("Invalid mobile number format for API. Must be a 10-digit Indian number."); window.close();</script>';
         }
-        
-        // Pass the full message (including links) to the API
-        $api_msg = $wa_msg;
-        $footer_text = $salon['salon_name'] ?? 'SalonApp';
-        
-        $api_res = sendWhatsappButtonApi($whatsapp_api_url, $whatsapp_api, $whatsapp_sender, $clean_phone, $api_msg, $invoice_url, $feedback_url, $image_url, $footer_text);
-        
-        if (isset($api_res['success']) && $api_res['success']) {
-            echo '<script>alert("WhatsApp message sent successfully via API!"); window.close();</script>';
-            exit;
-        }
+        exit;
     }
     
-    // Fallback to manual browser popup
+    // Fallback to manual browser popup ONLY if API is not enabled
     $wa_link = 'https://api.whatsapp.com/send?phone=' . $clean_phone . '&text=' . rawurlencode($wa_msg);
     header("Location: " . $wa_link);
     exit;
