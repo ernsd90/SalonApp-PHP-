@@ -249,20 +249,17 @@ function sendBillToMake($cust_name, $cust_phone, $total_amount, $payment_method,
  * @param string $image_url Header image URL
  * @return array
  */
-function sendWhatsappButtonApi($endpoint, $api_key, $sender, $number, $message, $invoice_url, $feedback_url, $image_url) {
-    $buttons = [
-        [
-            "type" => "url",
-            "displayText" => "View Receipt",
-            "url" => $invoice_url
-        ],
-        [
-            "type" => "url",
-            "displayText" => "Give Feedback",
-            "url" => $feedback_url
-        ]
-    ];
-    return sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $message, $buttons, $image_url);
+function sendWhatsappButtonApi($endpoint, $api_key, $sender, $number, $message, $invoice_url = '', $feedback_url = '', $image_url = '', $footer = '') {
+    // Since we are switching to the Text API, append the URLs to the message body.
+    if (!empty($invoice_url)) {
+        $message .= "\n\n🧾 View Receipt: " . $invoice_url;
+    }
+    if (!empty($feedback_url)) {
+        $message .= "\n\n⭐ We'd love your feedback! Please rate your experience here:\n" . $feedback_url;
+    }
+    
+    $buttons = []; // No longer used for Text API, but kept for compatibility
+    return sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $message, $buttons, $image_url, $footer);
 }
 
 /**
@@ -277,7 +274,7 @@ function sendWhatsappButtonApi($endpoint, $api_key, $sender, $number, $message, 
  * @param string $image_url Header image URL
  * @return array
  */
-function sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $message, $buttons = [], $image_url = '') {
+function sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $message, $buttons = [], $image_url = '', $footer = '') {
     if (empty(trim($endpoint)) || empty(trim($api_key)) || empty(trim($sender))) {
         return ['success' => false, 'error' => 'API Configuration incomplete'];
     }
@@ -288,6 +285,10 @@ function sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $me
         "number" => $number,
         "message" => $message
     ];
+    
+    if (!empty($footer)) {
+        $payload["footer"] = $footer;
+    }
     
     // Only include buttons and image if the endpoint explicitly supports them (send-button)
     if (strpos($endpoint, 'send-button') !== false) {

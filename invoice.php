@@ -443,7 +443,7 @@ if(isset($_POST['cust_mob'])){
                     $wa_short_inv_url = $short_inv_url;
                     $wa_feedback_url = $feedback_url;
 
-                    $api_res = sendWhatsappButtonApi($whatsapp_api_url, $whatsapp_api, $whatsapp_sender, $clean_mob, $message, $wa_short_inv_url, $wa_feedback_url, $image_url);
+                    $api_res = sendWhatsappButtonApi($whatsapp_api_url, $whatsapp_api, $whatsapp_sender, $clean_mob, $message, $wa_short_inv_url, $wa_feedback_url, $image_url, $salon_name);
                     if(isset($api_res['success']) && $api_res['success']) {
                         $whatsapp_api_success = true;
                     }

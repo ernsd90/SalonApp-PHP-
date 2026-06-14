@@ -154,8 +154,9 @@ if (isset($_GET['wa']) && $_GET['wa'] == 1) {
         
         // Pass the full message (including links) to the API
         $api_msg = $wa_msg;
+        $footer_text = $salon['salon_name'] ?? 'SalonApp';
         
-        $api_res = sendWhatsappButtonApi($whatsapp_api_url, $whatsapp_api, $whatsapp_sender, $clean_phone, $api_msg, $invoice_url, $feedback_url, $image_url);
+        $api_res = sendWhatsappButtonApi($whatsapp_api_url, $whatsapp_api, $whatsapp_sender, $clean_phone, $api_msg, $invoice_url, $feedback_url, $image_url, $footer_text);
         
         if (isset($api_res['success']) && $api_res['success']) {
             echo '<script>alert("WhatsApp message sent successfully via API!"); window.close();</script>';
