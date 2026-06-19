@@ -282,8 +282,13 @@ function sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $me
         $payload["footer"] = $footer;
     }
     
+    // Auto-route to text API if no buttons are provided, to prevent "Invalid button format" errors
+    if (empty($buttons) && strpos($endpoint, 'send-button') !== false) {
+        $endpoint = str_replace('send-button', 'send-message', $endpoint);
+    }
+
     // Only include buttons if the endpoint explicitly supports them (send-button)
-    if (strpos($endpoint, 'send-button') !== false) {
+    if (strpos($endpoint, 'send-button') !== false && !empty($buttons)) {
         $payload["button"] = $buttons;
     }
 
