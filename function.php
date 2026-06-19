@@ -294,12 +294,14 @@ function sendWhatsappCustomButtonsApi($endpoint, $api_key, $sender, $number, $me
 
     $json_payload = json_encode($payload);
 
+    $endpoint = trim($endpoint);
     $ch = curl_init($endpoint);
     curl_setopt_array($ch, [
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => $json_payload,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_TIMEOUT        => 20,
+        CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_HTTPHEADER     => [
             'Content-Type: application/json',
             'Content-Length: ' . strlen($json_payload),

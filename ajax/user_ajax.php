@@ -673,7 +673,7 @@ function send_staff_report_wa() {
     $message = "Hello {$staff_name},\n\n";
     $message .= "Here is your performance and sales report link for *{$salon_name}*.\n\n";
     $message .= "View your daily/monthly sales breakdown, targets achieved, repeat clients, and KPIs here:\n";
-    $message .= "👉 {$report_url}\n\n";
+    $message .= "{$report_url}\n\n";
     $message .= "Best regards,";
 
     $buttons = []; // No longer used, but kept for function signature compatibility
