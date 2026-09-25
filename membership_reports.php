@@ -201,20 +201,17 @@ $can_deactivate_pkg = (function_exists('is_superadmin') && is_superadmin())
             <thead style="background:#f8fafc;">
                 <tr>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);text-align:left;">Customer</th>
-                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Mobile</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Plan</th>
-                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Purchased</th>
-                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Paid</th>
-                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Outstanding</th>
+                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Paid & Due</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Wallet</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Mode</th>
+                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Purchased / Expiry</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Status</th>
-                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Expiry</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Actions</th>
                 </tr>
             </thead>
             <tbody id="mem_report_body">
-                <tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">Click "Load Reports" to view data.</td></tr>
+                <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">Click "Load Reports" to view data.</td></tr>
             </tbody>
         </table>
     </div>
@@ -267,20 +264,17 @@ $can_deactivate_pkg = (function_exists('is_superadmin') && is_superadmin())
             <thead style="background:#f8fafc;">
                 <tr>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);text-align:left;">Customer</th>
-                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);text-align:left;">Mobile</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Package</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Price</th>
-                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Paid</th>
-                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Outstanding</th>
+                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Paid & Due</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Mode</th>
-                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Purchased</th>
-                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Expiry</th>
+                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Purchased / Expiry</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Status</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Actions</th>
                 </tr>
             </thead>
             <tbody id="pkg_report_body">
-                <tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">Click "Load Reports" to view data.</td></tr>
+                <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">Click "Load Reports" to view data.</td></tr>
             </tbody>
         </table>
     </div>
@@ -456,22 +450,31 @@ function loadReports() {
                         var waBtn = waPhone ? '<a href="https://wa.me/91'+waPhone+'?text='+encodeURIComponent(waMsg)+'" target="_blank" style="background:#dcfce7;color:#15803d;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">&#128172; WA</a>' : '';
                         var walletBtn = '<button class="modalButtonCommon" data-href="customer_membership_view.php?cust_id='+m.cust_id+'" title="Wallet Ledger" style="background:#f3e8ff;color:#9333ea;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128179; Ledger</button>';
 
-                        rows += '<tr>' +
-                            '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+m.cust_name+'</td>' +
-                            '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+m.cust_mobile+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+m.plan_name+'</td>' +
-                            '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+(m.start_date||'—')+'</td>' +
-                            '<td data-order="'+parseFloat(m.paid_amount)+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:#059669;font-weight:600;">₹'+parseFloat(m.paid_amount).toFixed(2)+'</td>' +
-                            '<td data-order="'+outstanding+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';">₹'+outstanding.toFixed(2)+'</td>' +
-                            '<td data-order="'+parseFloat(m.wallet_credit||0)+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:var(--primary);font-weight:600;">₹'+parseFloat(m.wallet_credit||0).toFixed(2)+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;">'+mode+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><span style="background:'+sc+'20;color:'+sc+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">'+m.status+'</span></td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:var(--text-muted);font-size:13px;">'+(m.expiry_date||'—')+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="display:flex;gap:4px;flex-wrap:nowrap;">'+clearBtn+printBtn+walletBtn+waBtn+'</div></td>' +
+                        rows += '<tr class="table-pkg-row">' +
+                            '<td>' +
+                                '<div style="font-weight:700;color:#0f172a;font-size:13.5px;line-height:1.3;">'+m.cust_name+'</div>' +
+                                '<div style="font-size:12px;color:#64748b;margin-top:2px;display:flex;align-items:center;gap:4px;white-space:nowrap;"><i class="ph ph-phone" style="font-size:11px;opacity:0.75;"></i> '+(m.cust_mobile||'—')+'</div>' +
+                            '</td>' +
+                            '<td><div style="font-weight:600;color:#0f172a;">'+m.plan_name+'</div></td>' +
+                            '<td data-order="'+parseFloat(m.paid_amount)+'" style="white-space:nowrap;">' +
+                                '<div style="font-weight:700;color:#059669;font-size:13px;">Paid: ₹'+parseFloat(m.paid_amount).toFixed(2)+'</div>' +
+                                (outstanding > 0 
+                                    ? '<div style="font-weight:700;color:#dc2626;font-size:11.5px;margin-top:2px;">Due: ₹'+outstanding.toFixed(2)+'</div>' 
+                                    : '<div style="font-size:11px;color:#16a34a;margin-top:2px;display:inline-flex;align-items:center;gap:3px;font-weight:500;"><i class="ph-bold ph-check-circle"></i> Paid in Full</div>'
+                                ) +
+                            '</td>' +
+                            '<td data-order="'+parseFloat(m.wallet_credit||0)+'" style="color:var(--primary);font-weight:700;white-space:nowrap;">₹'+parseFloat(m.wallet_credit||0).toFixed(2)+'</td>' +
+                            '<td style="white-space:nowrap;"><span style="background:#f1f5f9;color:#334155;padding:2px 7px;border-radius:4px;font-size:11.5px;font-weight:600;">'+mode+'</span></td>' +
+                            '<td data-order="'+(m.start_date||'')+'" style="white-space:nowrap;">' +
+                                '<div style="font-weight:600;color:#0f172a;font-size:12.5px;">'+(m.start_date||'—')+'</div>' +
+                                '<div style="font-size:11.5px;color:#64748b;margin-top:2px;">Exp: <strong>'+(m.expiry_date||'—')+'</strong></div>' +
+                            '</td>' +
+                            '<td style="white-space:nowrap;"><span style="background:'+sc+'15;color:'+sc+';border:1px solid '+sc+'40;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;text-transform:capitalize;">'+m.status+'</span></td>' +
+                            '<td><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;min-width:130px;">'+clearBtn+printBtn+walletBtn+waBtn+'</div></td>' +
                         '</tr>';
                     });
                 } else {
-                    rows = '<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
+                    rows = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
                 }
                 $('#mem_report_body').html(rows);
 
@@ -479,9 +482,9 @@ function loadReports() {
                     memTable = $('#mem_report_table').DataTable({
                         responsive: true,
                         pageLength: 10,
-                        order: [[3, 'desc']],
+                        order: [[5, 'desc']],
                         columnDefs: [
-                            { orderable: false, targets: [1, 10] }
+                            { orderable: false, targets: [7] }
                         ]
                     });
                 }
@@ -598,25 +601,37 @@ function loadReports() {
                             : '';
 
                         rows += '<tr class="'+rowClass+'">' +
-                            '<td><div style="font-weight:700;color:#0f172a;">'+p.cust_name+'</div></td>' +
-                            '<td style="white-space:nowrap;"><div style="color:#475569;font-size:12.5px;font-weight:500;"><i class="ph ph-phone" style="font-size:11px;opacity:0.7;"></i> '+(p.cust_mobile||'—')+'</div></td>' +
+                            '<td>' +
+                                '<div style="font-weight:700;color:#0f172a;font-size:13.5px;line-height:1.3;">'+p.cust_name+'</div>' +
+                                '<div style="font-size:12px;color:#64748b;margin-top:2px;display:flex;align-items:center;gap:4px;white-space:nowrap;"><i class="ph ph-phone" style="font-size:11px;opacity:0.75;"></i> '+(p.cust_mobile||'—')+'</div>' +
+                            '</td>' +
                             '<td>' +
                                 '<div style="font-weight:600;color:#0f172a;line-height:1.3;">'+p.package_name+'</div>' +
                                 '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;align-items:center;">' + dupBadge + billingBadge + '</div>' +
                                 invLinks +
                             '</td>' +
                             '<td data-order="'+parseFloat(p.purchase_price)+'" style="font-weight:700;color:#0f172a;white-space:nowrap;">₹'+parseFloat(p.purchase_price).toFixed(2)+'</td>' +
-                            '<td data-order="'+parseFloat(p.paid_amount||0)+'" style="font-weight:700;color:#059669;white-space:nowrap;">₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</td>' +
-                            '<td data-order="'+outstanding+'" style="font-weight:700;white-space:nowrap;color:'+(outstanding>0?'#dc2626':'#059669')+';">₹'+outstanding.toFixed(2)+'</td>' +
+                            '<td data-order="'+parseFloat(p.paid_amount||0)+'" style="white-space:nowrap;">' +
+                                '<div style="font-weight:700;color:#059669;font-size:13px;">Paid: ₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</div>' +
+                                (outstanding > 0 
+                                    ? '<div style="font-weight:700;color:#dc2626;font-size:11.5px;margin-top:2px;">Due: ₹'+outstanding.toFixed(2)+'</div>' 
+                                    : '<div style="font-size:11px;color:#16a34a;margin-top:2px;display:inline-flex;align-items:center;gap:3px;font-weight:500;"><i class="ph-bold ph-check-circle"></i> Paid in Full</div>'
+                                ) +
+                            '</td>' +
                             '<td style="white-space:nowrap;"><span style="background:#f1f5f9;color:#334155;padding:2px 7px;border-radius:4px;font-size:11.5px;font-weight:600;">'+mode+'</span></td>' +
-                            '<td>'+timingDisplay+'</td>' +
-                            '<td style="color:#64748b;font-size:12.5px;white-space:nowrap;">'+(p.expiry_date||'—')+'</td>' +
-                            '<td>'+statusDisplay+'</td>' +
-                            '<td><div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;min-width:140px;">'+clearBtn+printBtn+walletBtn2+deactivateBtn+waBtn+'</div></td>' +
+                            '<td data-order="'+(p.created_at || p.purchase_date)+'" style="white-space:nowrap;">' +
+                                '<div style="font-weight:600;color:#1e293b;font-size:12.5px;">'+p.purchase_date+'</div>' +
+                                '<div style="display:flex;align-items:center;gap:5px;margin-top:2px;">' +
+                                    (timeStr ? '<span style="font-size:10.5px;color:#64748b;background:#f8fafc;padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0;display:inline-flex;align-items:center;gap:2px;"><i class="ph ph-clock"></i> '+timeStr+'</span>' : '') +
+                                    '<span style="font-size:11.5px;color:#64748b;" title="Expiry date">Exp: <strong style="color:#475569;">'+(p.expiry_date||'—')+'</strong></span>' +
+                                '</div>' +
+                            '</td>' +
+                            '<td style="white-space:nowrap;">'+statusDisplay+'</td>' +
+                            '<td><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;min-width:130px;">'+clearBtn+printBtn+walletBtn2+deactivateBtn+waBtn+'</div></td>' +
                         '</tr>';
                     });
                 } else {
-                    rows = '<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
+                    rows = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
                 }
                 
                 $('#pkg_report_body').html(rows);
@@ -625,9 +640,9 @@ function loadReports() {
                     pkgTable = $('#pkg_report_table').DataTable({
                         responsive: true,
                         pageLength: 10,
-                        order: [[7, 'desc']],
+                        order: [[5, 'desc']],
                         columnDefs: [
-                            { orderable: false, targets: [10] }
+                            { orderable: false, targets: [7] }
                         ]
                     });
                 }
@@ -702,37 +717,37 @@ loadReports(); // auto load on page open
 // Bind Custom Filters for Memberships
 $('#mem_status_filter').on('change', function() {
     if (memTable) {
-        memTable.column(8).search(this.value).draw();
+        memTable.column(6).search(this.value).draw();
     }
 });
 $('#mem_mode_filter').on('change', function() {
     if (memTable) {
-        memTable.column(7).search(this.value).draw();
+        memTable.column(4).search(this.value).draw();
     }
 });
 
 // Bind Custom Filters for Packages
 $('#pkg_status_filter').on('change', function() {
     if (pkgTable) {
-        pkgTable.column(9).search(this.value).draw();
+        pkgTable.column(6).search(this.value).draw();
     }
 });
 $('#pkg_mode_filter').on('change', function() {
     if (pkgTable) {
-        pkgTable.column(6).search(this.value).draw();
+        pkgTable.column(4).search(this.value).draw();
     }
 });
 $('#pkg_billing_filter').on('change', function() {
     if (pkgTable) {
-        pkgTable.column(2).search(this.value).draw();
+        pkgTable.column(1).search(this.value).draw();
     }
 });
 $('#pkg_dup_filter').on('change', function() {
     if (pkgTable) {
         if (this.checked) {
-            pkgTable.column(2).search('Duplicate').draw();
+            pkgTable.column(1).search('Duplicate').draw();
         } else {
-            pkgTable.column(2).search('').draw();
+            pkgTable.column(1).search('').draw();
         }
     }
 });
