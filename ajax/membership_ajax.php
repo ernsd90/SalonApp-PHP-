@@ -179,6 +179,7 @@ function apply_membership_schema() {
 
     // New additions for partial payments
     mysqli_query($conn, "ALTER TABLE `hr_customer_membership` MODIFY `wallet_credited` DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+    mysqli_query($conn, "ALTER TABLE `hr_customer_membership` MODIFY `sold_by` VARCHAR(255) DEFAULT NULL");
     
     $pkg_col_check = mysqli_query($conn, "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'hr_customer_packages' AND COLUMN_NAME = 'paid_amount'");
@@ -186,6 +187,7 @@ function apply_membership_schema() {
         mysqli_query($conn, "ALTER TABLE `hr_customer_packages` ADD COLUMN `paid_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER `purchase_price`, ADD COLUMN `remaining_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER `paid_amount`");
         mysqli_query($conn, "UPDATE `hr_customer_packages` SET `paid_amount` = `purchase_price` + `gst_amount`, `remaining_amount` = 0");
     }
+    mysqli_query($conn, "ALTER TABLE `hr_customer_packages` MODIFY `sold_by` VARCHAR(255) DEFAULT NULL");
 }
 
 // ──────────────────────────────────────────────────────────
@@ -305,7 +307,16 @@ function create_package_new() {
     global $salon_id, $user_id;
     extract($_POST);
     $package_name   = mysqli_real_escape_string($GLOBALS['conn'], trim($package_name));
-    $validity_days  = intval($validity_months ?? 3) * 30;
+    $vm = intval($validity_months ?? 3);
+    if ($vm === 0) {
+        $validity_days = 0;
+    } elseif ($vm === 24) {
+        $validity_days = 730;
+    } elseif ($vm === 12) {
+        $validity_days = 365;
+    } else {
+        $validity_days = $vm * 30;
+    }
     $selling_price  = floatval($selling_price);
     $allow_discount = intval($allow_discount ?? 0);
     $gst_applicable = intval($gst_applicable ?? 0);
@@ -368,7 +379,16 @@ function update_package_new() {
     extract($_POST);
     $pkg_id         = intval($pkg_id);
     $package_name   = mysqli_real_escape_string($GLOBALS['conn'], trim($package_name));
-    $validity_days  = intval($validity_months ?? 3) * 30;
+    $vm = intval($validity_months ?? 3);
+    if ($vm === 0) {
+        $validity_days = 0;
+    } elseif ($vm === 24) {
+        $validity_days = 730;
+    } elseif ($vm === 12) {
+        $validity_days = 365;
+    } else {
+        $validity_days = $vm * 30;
+    }
     $selling_price  = floatval($selling_price);
     $allow_discount = intval($allow_discount ?? 0);
     $gst_applicable = intval($gst_applicable ?? 0);
@@ -444,12 +464,48 @@ function get_packages_new() {
         $sv = mysqli_real_escape_string($GLOBALS['conn'], $search['value']);
         $where .= " AND p.package_name LIKE '%$sv%'";
     }
+
+    $fields = [
+        0 => 'p.pkg_id',
+        1 => 'p.package_name',
+        3 => 'p.mrp_total',
+        4 => 'p.selling_price',
+        5 => 'p.savings',
+        6 => 'p.validity_days',
+        7 => 'p.status'
+    ];
+
+    if (isset($order[0]['column']) && isset($fields[$order[0]['column']])) {
+        $col = $fields[$order[0]['column']];
+        $dir = (isset($order[0]['dir']) && strtolower($order[0]['dir']) === 'asc') ? 'ASC' : 'DESC';
+        if ($col === 'p.status') {
+            $order_by = "ORDER BY p.status $dir, p.pkg_id DESC";
+        } else {
+            $order_by = "ORDER BY $col $dir";
+        }
+    } else {
+        $order_by = "ORDER BY p.status DESC, p.pkg_id DESC";
+    }
+
     $total = num_rows("SELECT pkg_id FROM hr_packages_new p $where");
-    $sql   = "SELECT p.* FROM hr_packages_new p $where ORDER BY p.pkg_id DESC LIMIT $start, $length";
+    $sql   = "SELECT p.* FROM hr_packages_new p $where $order_by LIMIT $start, $length";
     $rows  = select_array($sql);
     $data  = [];
     foreach ($rows as $r) {
-        $validity_months = round($r['validity_days'] / 30);
+        $v_days = (int)$r['validity_days'];
+        if ($v_days == 0 || $v_days >= 36500) {
+            $validity_str = '<span style="background:#e0e7ff;color:#4f46e5;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">No Expiry</span>';
+        } else {
+            $vm = round($v_days / 30);
+            if ($vm >= 24 && $vm % 12 == 0) {
+                $yrs = round($vm / 12);
+                $validity_str = $yrs . ' Years';
+            } elseif ($vm == 12) {
+                $validity_str = '1 Year';
+            } else {
+                $validity_str = $vm . ' Month' . ($vm != 1 ? 's' : '');
+            }
+        }
         $items = select_array("SELECT service_name, quantity FROM hr_package_items WHERE pkg_id='{$r['pkg_id']}'");
         $svc_list = implode(', ', array_map(fn($i) => $i['quantity'].'x '.$i['service_name'], $items));
         $status_badge = $r['status'] == 1
@@ -467,7 +523,7 @@ function get_packages_new() {
             'mrp_total'     => '₹' . number_format($r['mrp_total'], 2),
             'selling_price' => '₹' . number_format($r['selling_price'], 2),
             'savings'       => '₹' . number_format($r['savings'], 2),
-            'validity'      => $validity_months . ' Month' . ($validity_months != 1 ? 's' : ''),
+            'validity'      => $validity_str,
             'status'        => $status_badge,
             'action'        => '<div style="display:flex;gap:6px;">'.$edit_btn.$toggle_btn.'</div>',
         ];
@@ -535,7 +591,13 @@ function sell_membership() {
     $paid_now      = floatval($paid_now);
     $payment_mode  = mysqli_real_escape_string($conn, $payment_mode ?? 'cash');
     $notes         = mysqli_real_escape_string($conn, $notes ?? '');
-    $sold_by       = intval($staff_id ?? $user_id);
+    $sold_by_arr   = isset($_POST['staff_id']) ? (is_array($_POST['staff_id']) ? $_POST['staff_id'] : [$_POST['staff_id']]) : [];
+    $sold_by_clean = array_filter(array_map('intval', $sold_by_arr));
+    if (empty($sold_by_clean)) {
+        return ['error' => 1, 'msg' => 'Please select at least one staff member (Sold By).'];
+    }
+    $sold_by       = mysqli_real_escape_string($conn, implode(',', $sold_by_clean));
+    $split_payments = isset($_POST['split_payments']) ? json_decode($_POST['split_payments'], true) : [];
     $billing_date  = !empty($billing_date) ? date('Y-m-d', strtotime($billing_date)) : date('Y-m-d');
 
     if (!$cust_id || !$plan_id || $paid_now <= 0) {
@@ -579,10 +641,43 @@ function sell_membership() {
     if (!$cm_id) return ['error' => 1, 'msg' => 'Failed to save membership.'];
 
     // Record payment entry
-    insert_query("INSERT INTO hr_membership_payments SET
-        cm_id='$cm_id', salon_id='$salon_id', cust_id='$cust_id',
-        amount='$paid_now', payment_mode='$payment_mode', paid_by='$user_id',
-        notes='Initial payment', created_at='$created_at_val'");
+    if (!empty($split_payments) && is_array($split_payments)) {
+        foreach ($split_payments as $sp) {
+            $sp_mode = mysqli_real_escape_string($conn, $sp['mode']);
+            $sp_amt = floatval($sp['amount']);
+            if ($sp_amt > 0) {
+                insert_query("INSERT INTO hr_membership_payments SET
+                    cm_id='$cm_id', salon_id='$salon_id', cust_id='$cust_id',
+                    amount='$sp_amt', payment_mode='$sp_mode', paid_by='$user_id',
+                    notes='Initial split payment', created_at='$created_at_val'");
+            }
+        }
+    } else {
+        insert_query("INSERT INTO hr_membership_payments SET
+            cm_id='$cm_id', salon_id='$salon_id', cust_id='$cust_id',
+            amount='$paid_now', payment_mode='$payment_mode', paid_by='$user_id',
+            notes='Initial payment', created_at='$created_at_val'");
+    }
+
+    // Create POS Invoice for transparency in invoice history
+    $cust_row = select_row("SELECT cust_name, cust_mobile FROM hr_customer WHERE cust_id='$cust_id'");
+    $inv_res = create_pos_invoice_with_staff([
+        'salon_id' => $salon_id,
+        'user_id' => $user_id,
+        'cust_id' => $cust_id,
+        'cust_name' => $cust_row['cust_name'] ?? '',
+        'cust_mob' => $cust_row['cust_mobile'] ?? '',
+        'service_cat' => 'Membership',
+        'service_name' => $plan['plan_name'],
+        'service_price' => $total_price,
+        'paid_amount' => $paid_now,
+        'outstanding' => $remaining,
+        'payment_mode' => $payment_mode,
+        'billing_remark' => 'Membership Purchase: ' . $plan['plan_name'],
+        'invoice_date' => $created_at_val,
+        'staff_ids' => $sold_by_clean,
+        'split_payments' => $split_payments
+    ]);
 
     // Credit wallet with initial dispensed amount
     if ($wallet_credited > 0) {
@@ -592,7 +687,8 @@ function sell_membership() {
         update_query("UPDATE hr_customer SET active_membership_id='$cm_id' WHERE cust_id='$cust_id'");
     }
 
-    return ['error' => 0, 'msg' => 'Membership sold successfully.' . ($remaining > 0 ? ' Remaining: ₹' . $remaining : ' Wallet credited: ₹' . $wallet_credit)];
+    $print_url = $inv_res['print_url'] ?? '';
+    return ['error' => 0, 'msg' => 'Membership sold successfully.' . ($remaining > 0 ? ' Remaining: ₹' . $remaining : ' Wallet credited: ₹' . $wallet_credit), 'print_url' => $print_url];
 }
 
 function record_membership_payment() {
@@ -625,6 +721,26 @@ function record_membership_payment() {
         cm_id='$cm_id', salon_id='$salon_id', cust_id='{$membership['cust_id']}',
         amount='$amount', payment_mode='$payment_mode', paid_by='$user_id', notes='$notes_str', created_at='$created_at_val'");
 
+    // Create POS Invoice for transparency in invoice history
+    $cust_row = select_row("SELECT cust_name, cust_mobile FROM hr_customer WHERE cust_id='{$membership['cust_id']}'");
+    $sold_by_clean = array_filter(array_map('intval', explode(',', $membership['sold_by'] ?? '')));
+    $inv_res = create_pos_invoice_with_staff([
+        'salon_id' => $salon_id,
+        'user_id' => $user_id,
+        'cust_id' => $membership['cust_id'],
+        'cust_name' => $cust_row['cust_name'] ?? '',
+        'cust_mob' => $cust_row['cust_mobile'] ?? '',
+        'service_cat' => 'Membership Payment',
+        'service_name' => 'Membership Payment: ' . $membership['plan_name'],
+        'service_price' => $amount,
+        'paid_amount' => $amount,
+        'outstanding' => 0,
+        'payment_mode' => $payment_mode,
+        'billing_remark' => 'Membership Payment: ' . $membership['plan_name'],
+        'invoice_date' => $created_at_val,
+        'staff_ids' => $sold_by_clean
+    ]);
+
     if ($is_fully_paid) {
         $status_update = "";
         if ($membership['status'] == 'pending') {
@@ -638,14 +754,19 @@ function record_membership_payment() {
         if ($wallet_credit_to_give > 0) {
             credit_customer_wallet($membership['cust_id'], $wallet_credit_to_give, $cm_id, 'Membership fully paid: ' . $membership['plan_name']);
         }
-        update_query("UPDATE hr_customer SET active_membership_id='$cm_id' WHERE cust_id='{$membership['cust_id']}'");
-        return ['error' => 0, 'msg' => 'Payment recorded. Membership fully paid! Wallet credited ₹' . $wallet_credit_to_give];
+        if (function_exists('sync_customer_outstanding')) {
+            sync_customer_outstanding($membership['cust_id']);
+        }
+        return ['error' => 0, 'msg' => 'Payment recorded. Membership fully paid! Wallet credited ₹' . $wallet_credit_to_give, 'print_url' => $inv_res['print_url'] ?? ''];
     } else {
         update_query("UPDATE hr_customer_membership SET paid_amount='$new_paid', remaining_amount='$new_remaining', wallet_credited='$new_wallet_credited' WHERE cm_id='$cm_id'");
         if ($wallet_credit_to_give > 0) {
             credit_customer_wallet($membership['cust_id'], $wallet_credit_to_give, $cm_id, 'Membership Partial Payment: ' . $membership['plan_name']);
         }
-        return ['error' => 0, 'msg' => 'Payment recorded. Remaining: ₹' . $new_remaining . ' Wallet credited: ₹' . $wallet_credit_to_give];
+        if (function_exists('sync_customer_outstanding')) {
+            sync_customer_outstanding($membership['cust_id']);
+        }
+        return ['error' => 0, 'msg' => 'Payment recorded. Remaining: ₹' . $new_remaining . ' Wallet credited: ₹' . $wallet_credit_to_give, 'print_url' => $inv_res['print_url'] ?? ''];
     }
 }
 
@@ -660,7 +781,13 @@ function sell_package_new() {
     $paid_now     = floatval($paid_now ?? 0);
     $payment_mode = mysqli_real_escape_string($conn, $payment_mode ?? 'cash');
     $notes_str    = mysqli_real_escape_string($conn, $notes ?? '');
-    $sold_by      = intval($staff_id ?? $user_id);
+    $sold_by_arr  = isset($_POST['staff_id']) ? (is_array($_POST['staff_id']) ? $_POST['staff_id'] : [$_POST['staff_id']]) : [];
+    $sold_by_clean = array_filter(array_map('intval', $sold_by_arr));
+    if (empty($sold_by_clean)) {
+        return ['error' => 1, 'msg' => 'Please select at least one staff member (Sold By).'];
+    }
+    $sold_by      = mysqli_real_escape_string($conn, implode(',', $sold_by_clean));
+    $split_payments = isset($_POST['split_payments']) ? json_decode($_POST['split_payments'], true) : [];
     $billing_date = !empty($billing_date) ? date('Y-m-d', strtotime($billing_date)) : date('Y-m-d');
 
     if (!$cust_id || !$pkg_id) return ['error' => 1, 'msg' => 'Select customer and package.'];
@@ -681,7 +808,11 @@ function sell_package_new() {
     $remaining = round($purchase_price - $paid_now, 2);
 
     $purchase_date = $billing_date;
-    $expiry_date   = date('Y-m-d', strtotime($billing_date . ' + ' . $pkg['validity_days'] . ' days'));
+    if ((int)$pkg['validity_days'] == 0 || (int)$pkg['validity_days'] >= 36500) {
+        $expiry_date = '2099-12-31';
+    } else {
+        $expiry_date = date('Y-m-d', strtotime($billing_date . ' + ' . $pkg['validity_days'] . ' days'));
+    }
     $created_at_val = $billing_date . ' ' . date('H:i:s');
 
     $cp_id = insert_query("INSERT INTO hr_customer_packages SET
@@ -693,11 +824,45 @@ function sell_package_new() {
 
     if (!$cp_id) return ['error' => 1, 'msg' => 'Failed to create package record.'];
 
-    insert_query("INSERT INTO hr_package_payments SET
-        cp_id='$cp_id', salon_id='$salon_id', cust_id='$cust_id',
-        amount='$paid_now', payment_mode='$payment_mode', paid_by='$user_id', notes='Initial payment', created_at='$created_at_val'");
+    // Record payment entry
+    if (!empty($split_payments) && is_array($split_payments)) {
+        foreach ($split_payments as $sp) {
+            $sp_mode = mysqli_real_escape_string($conn, $sp['mode']);
+            $sp_amt = floatval($sp['amount']);
+            if ($sp_amt > 0) {
+                insert_query("INSERT INTO hr_package_payments SET
+                    cp_id='$cp_id', salon_id='$salon_id', cust_id='$cust_id',
+                    amount='$sp_amt', payment_mode='$sp_mode', paid_by='$user_id', notes='Initial split payment', created_at='$created_at_val'");
+            }
+        }
+    } else {
+        insert_query("INSERT INTO hr_package_payments SET
+            cp_id='$cp_id', salon_id='$salon_id', cust_id='$cust_id',
+            amount='$paid_now', payment_mode='$payment_mode', paid_by='$user_id', notes='Initial payment', created_at='$created_at_val'");
+    }
 
-    return ['error' => 0, 'msg' => 'Package sold successfully. Expires: ' . date('d M Y', strtotime($expiry_date)) . ($remaining > 0 ? ' Remaining: ₹' . $remaining : '')];
+    // Create POS Invoice for transparency in invoice history
+    $cust_row = select_row("SELECT cust_name, cust_mobile FROM hr_customer WHERE cust_id='$cust_id'");
+    $inv_res = create_pos_invoice_with_staff([
+        'salon_id' => $salon_id,
+        'user_id' => $user_id,
+        'cust_id' => $cust_id,
+        'cust_name' => $cust_row['cust_name'] ?? '',
+        'cust_mob' => $cust_row['cust_mobile'] ?? '',
+        'service_cat' => 'Package',
+        'service_name' => $pkg['package_name'],
+        'service_price' => $purchase_price,
+        'paid_amount' => $paid_now,
+        'outstanding' => $remaining,
+        'payment_mode' => $payment_mode,
+        'billing_remark' => 'Package Purchase: ' . $pkg['package_name'],
+        'invoice_date' => $created_at_val,
+        'staff_ids' => $sold_by_clean,
+        'split_payments' => $split_payments
+    ]);
+
+    $print_url = $inv_res['print_url'] ?? '';
+    return ['error' => 0, 'msg' => 'Package sold successfully. Expires: ' . date('d M Y', strtotime($expiry_date)) . ($remaining > 0 ? ' Remaining: ₹' . $remaining : ''), 'print_url' => $print_url];
 }
 
 function record_package_payment() {
@@ -724,12 +889,36 @@ function record_package_payment() {
         cp_id='$cp_id', salon_id='$salon_id', cust_id='{$pkg['cust_id']}',
         amount='$amount', payment_mode='$payment_mode', paid_by='$user_id', notes='$notes_str', created_at='$created_at_val'");
 
+    // Create POS Invoice for transparency in invoice history
+    $cust_row = select_row("SELECT cust_name, cust_mobile FROM hr_customer WHERE cust_id='{$pkg['cust_id']}'");
+    $sold_by_clean = array_filter(array_map('intval', explode(',', $pkg['sold_by'] ?? '')));
+    $inv_res = create_pos_invoice_with_staff([
+        'salon_id' => $salon_id,
+        'user_id' => $user_id,
+        'cust_id' => $pkg['cust_id'],
+        'cust_name' => $cust_row['cust_name'] ?? '',
+        'cust_mob' => $cust_row['cust_mobile'] ?? '',
+        'service_cat' => 'Package Payment',
+        'service_name' => 'Package Payment: ' . $pkg['package_name'],
+        'service_price' => $amount,
+        'paid_amount' => $amount,
+        'outstanding' => 0,
+        'payment_mode' => $payment_mode,
+        'billing_remark' => 'Package Payment: ' . $pkg['package_name'],
+        'invoice_date' => $created_at_val,
+        'staff_ids' => $sold_by_clean
+    ]);
+
     update_query("UPDATE hr_customer_packages SET paid_amount='$new_paid', remaining_amount='$new_remaining' WHERE cp_id='$cp_id'");
     
+    if (function_exists('sync_customer_outstanding')) {
+        sync_customer_outstanding($pkg['cust_id']);
+    }
+    
     if ($new_remaining <= 0) {
-        return ['error' => 0, 'msg' => 'Payment recorded. Package fully paid!'];
+        return ['error' => 0, 'msg' => 'Payment recorded. Package fully paid!', 'print_url' => $inv_res['print_url'] ?? ''];
     } else {
-        return ['error' => 0, 'msg' => 'Payment recorded. Remaining: ₹' . $new_remaining];
+        return ['error' => 0, 'msg' => 'Payment recorded. Remaining: ₹' . $new_remaining, 'print_url' => $inv_res['print_url'] ?? ''];
     }
 }
 
@@ -977,11 +1166,11 @@ function membership_report_data() {
     $from = !empty($from_date) ? date('Y-m-d', strtotime($from_date)) : date('Y-m-01');
     $to   = !empty($to_date)   ? date('Y-m-d', strtotime($to_date))   : date('Y-m-d');
 
-    $total_sold   = num_rows("SELECT cm_id FROM hr_customer_membership WHERE salon_id='$salon_id' AND DATE(created_at) BETWEEN '$from' AND '$to'");
+    $total_sold   = num_rows("SELECT cm_id FROM hr_customer_membership WHERE salon_id='$salon_id' AND (DATE(created_at) BETWEEN '$from' AND '$to' OR (start_date IS NOT NULL AND start_date BETWEEN '$from' AND '$to'))");
     $active_count = num_rows("SELECT cm_id FROM hr_customer_membership WHERE salon_id='$salon_id' AND status='active'");
     $expired_count= num_rows("SELECT cm_id FROM hr_customer_membership WHERE salon_id='$salon_id' AND status='expired'");
 
-    $revenue    = select_row("SELECT COALESCE(SUM(paid_amount),0) as total FROM hr_customer_membership WHERE salon_id='$salon_id' AND DATE(created_at) BETWEEN '$from' AND '$to'");
+    $revenue    = select_row("SELECT COALESCE(SUM(paid_amount),0) as total FROM hr_customer_membership WHERE salon_id='$salon_id' AND (DATE(created_at) BETWEEN '$from' AND '$to' OR (start_date IS NOT NULL AND start_date BETWEEN '$from' AND '$to'))");
     $liability  = select_row("SELECT COALESCE(SUM(c.cust_wallet),0) as total FROM hr_customer c WHERE c.salon_id='$salon_id'");
     $redeemed   = select_row("SELECT COALESCE(SUM(debit),0) as total FROM hr_customer_wallet w JOIN hr_customer c ON c.cust_id=w.cust_id WHERE c.salon_id='$salon_id'");
 
@@ -992,7 +1181,7 @@ function membership_report_data() {
         c.cust_id, c.cust_name, c.cust_mobile
         FROM hr_customer_membership cm
         JOIN hr_customer c ON c.cust_id=cm.cust_id
-        WHERE cm.salon_id='$salon_id' AND DATE(cm.created_at) BETWEEN '$from' AND '$to'
+        WHERE cm.salon_id='$salon_id' AND (DATE(cm.created_at) BETWEEN '$from' AND '$to' OR (cm.start_date IS NOT NULL AND cm.start_date BETWEEN '$from' AND '$to'))
         ORDER BY cm.cm_id DESC");
 
     return [
@@ -1014,11 +1203,11 @@ function package_report_data() {
     $to   = !empty($to_date)   ? date('Y-m-d', strtotime($to_date))   : date('Y-m-d');
     $today = date('Y-m-d');
 
-    $total_sold    = num_rows("SELECT cp_id FROM hr_customer_packages WHERE salon_id='$salon_id' AND DATE(created_at) BETWEEN '$from' AND '$to'");
+    $total_sold    = num_rows("SELECT cp_id FROM hr_customer_packages WHERE salon_id='$salon_id' AND (DATE(created_at) BETWEEN '$from' AND '$to' OR (purchase_date IS NOT NULL AND purchase_date BETWEEN '$from' AND '$to'))");
     $active_count  = num_rows("SELECT cp_id FROM hr_customer_packages WHERE salon_id='$salon_id' AND status='active'");
     $expiring_soon = num_rows("SELECT cp_id FROM hr_customer_packages WHERE salon_id='$salon_id' AND status='active' AND expiry_date BETWEEN '$today' AND DATE_ADD('$today', INTERVAL 30 DAY)");
 
-    $revenue = select_row("SELECT COALESCE(SUM(purchase_price),0) as total FROM hr_customer_packages WHERE salon_id='$salon_id' AND DATE(created_at) BETWEEN '$from' AND '$to'");
+    $revenue = select_row("SELECT COALESCE(SUM(purchase_price),0) as total FROM hr_customer_packages WHERE salon_id='$salon_id' AND (DATE(created_at) BETWEEN '$from' AND '$to' OR (purchase_date IS NOT NULL AND purchase_date BETWEEN '$from' AND '$to'))");
 
     // Service liability (remaining sessions × service price)
     $liability_rows = select_array("SELECT pi.service_name, pi.service_price, pi.quantity,
@@ -1036,7 +1225,7 @@ function package_report_data() {
         c.cust_id, c.cust_name, c.cust_mobile
         FROM hr_customer_packages cp
         JOIN hr_customer c ON c.cust_id=cp.cust_id
-        WHERE cp.salon_id='$salon_id' AND DATE(cp.created_at) BETWEEN '$from' AND '$to'
+        WHERE cp.salon_id='$salon_id' AND (DATE(cp.created_at) BETWEEN '$from' AND '$to' OR (cp.purchase_date IS NOT NULL AND cp.purchase_date BETWEEN '$from' AND '$to'))
         ORDER BY cp.cp_id DESC");
 
     return [
@@ -1051,8 +1240,250 @@ function package_report_data() {
 }
 
 // ──────────────────────────────────────────────────────────
-// UTILITY HELPER
+// MANUAL REGISTER IMPORT & BALANCE ADJUSTMENTS
 // ──────────────────────────────────────────────────────────
+
+function get_package_items_manual() {
+    global $salon_id;
+    $pkg_id = intval($_REQUEST['pkg_id'] ?? 0);
+    if (!$pkg_id) return ['error' => 1, 'msg' => 'Invalid package ID.'];
+
+    $pkg = select_row("SELECT * FROM hr_packages_new WHERE pkg_id='$pkg_id' AND salon_id='$salon_id'");
+    if (!$pkg) return ['error' => 1, 'msg' => 'Package not found.'];
+
+    $items = select_array("SELECT item_id, service_id, service_name, quantity, service_price FROM hr_package_items WHERE pkg_id='$pkg_id'");
+
+    return [
+        'error' => 0,
+        'package' => $pkg,
+        'items' => $items
+    ];
+}
+
+function add_manual_package_entry() {
+    global $salon_id, $user_id, $conn;
+    extract($_POST);
+
+    $cust_id        = intval($cust_id);
+    $pkg_id         = intval($pkg_id);
+    $purchase_price = floatval($purchase_price ?? 0);
+    $paid_amount    = floatval($paid_amount ?? 0);
+    $payment_mode   = mysqli_real_escape_string($conn, $payment_mode ?? 'cash');
+    $notes_str      = mysqli_real_escape_string($conn, $notes ?? '');
+    $p_date         = !empty($purchase_date) ? date('Y-m-d', strtotime($purchase_date)) : date('Y-m-d');
+    $created_at_val = $p_date . ' 10:00:00';
+
+    if (!$cust_id || !$pkg_id) {
+        return ['error' => 1, 'msg' => 'Please select a customer and a package.'];
+    }
+
+    $pkg = select_row("SELECT * FROM hr_packages_new WHERE pkg_id='$pkg_id' AND salon_id='$salon_id'");
+    if (!$pkg) return ['error' => 1, 'msg' => 'Package not found.'];
+
+    $pkg_items = select_array("SELECT * FROM hr_package_items WHERE pkg_id='$pkg_id'");
+    if (!$pkg_items) return ['error' => 1, 'msg' => 'No service items in this package.'];
+
+    $remaining = max(0, round($purchase_price - $paid_amount, 2));
+    if ((int)$pkg['validity_days'] == 0 || (int)$pkg['validity_days'] >= 36500) {
+        $expiry_date = '2099-12-31';
+    } else {
+        $v_days = (int)($pkg['validity_days'] ?: 365);
+        $expiry_date = date('Y-m-d', strtotime($p_date . ' + ' . $v_days . ' days'));
+    }
+
+    $total_qty = 0;
+    $total_taken = 0;
+    $service_taken_map = isset($_POST['qty_taken']) && is_array($_POST['qty_taken']) ? $_POST['qty_taken'] : [];
+
+    foreach ($pkg_items as $pi) {
+        $sid = $pi['service_id'];
+        $q = (int)$pi['quantity'];
+        $taken = isset($service_taken_map[$sid]) ? min($q, max(0, (int)$service_taken_map[$sid])) : 0;
+        $total_qty += $q;
+        $total_taken += $taken;
+    }
+
+    $status = ($total_taken >= $total_qty && $total_qty > 0) ? 'fully_used' : 'active';
+    if ($expiry_date < date('Y-m-d') && $status === 'active') {
+        $status = 'expired';
+    }
+
+    $cp_id = insert_query("INSERT INTO hr_customer_packages SET
+        salon_id='$salon_id', cust_id='$cust_id', pkg_id='$pkg_id',
+        package_name='" . mysqli_real_escape_string($conn, $pkg['package_name']) . "',
+        purchase_price='$purchase_price', paid_amount='$paid_amount', remaining_amount='$remaining',
+        gst_amount='0', payment_mode='$payment_mode', purchase_date='$p_date',
+        expiry_date='$expiry_date', status='$status', sold_by='$user_id',
+        notes='" . mysqli_real_escape_string($conn, 'Manual register entry: ' . $notes_str) . "',
+        created_at='$created_at_val'");
+
+    if (!$cp_id) return ['error' => 1, 'msg' => 'Failed to record manual package entry.'];
+
+    if ($paid_amount > 0) {
+        insert_query("INSERT INTO hr_package_payments SET
+            cp_id='$cp_id', salon_id='$salon_id', cust_id='$cust_id',
+            amount='$paid_amount', payment_mode='$payment_mode', paid_by='$user_id',
+            notes='Initial payment from manual register entry', created_at='$created_at_val'");
+    }
+
+    foreach ($pkg_items as $pi) {
+        $sid = $pi['service_id'];
+        $q = (int)$pi['quantity'];
+        $taken = isset($service_taken_map[$sid]) ? min($q, max(0, (int)$service_taken_map[$sid])) : 0;
+        if ($taken > 0) {
+            insert_query("INSERT INTO hr_customer_package_usage SET
+                cp_id='$cp_id', pkg_id='$pkg_id', cust_id='$cust_id', service_id='$sid',
+                qty_used='$taken', invoice_id=NULL, used_by='$user_id', used_at='$created_at_val'");
+        }
+    }
+
+    return ['error' => 0, 'msg' => 'Manual package & past sessions recorded successfully!'];
+}
+
+function adjust_customer_wallet_manual() {
+    global $salon_id, $user_id, $conn;
+    extract($_POST);
+
+    $cust_id  = intval($cust_id);
+    $adj_type = mysqli_real_escape_string($conn, $adj_type ?? 'credit');
+    $amount   = floatval($amount ?? 0);
+    $remark   = trim($remark ?? '');
+    $adj_date = !empty($adj_date) ? date('Y-m-d H:i:s', strtotime($adj_date . ' ' . date('H:i:s'))) : date('Y-m-d H:i:s');
+
+    if (!$cust_id) return ['error' => 1, 'msg' => 'Invalid customer ID.'];
+    if ($amount < 0) return ['error' => 1, 'msg' => 'Amount cannot be negative.'];
+    if (empty($remark)) return ['error' => 1, 'msg' => 'Please enter a valid reason / remark for audit purposes.'];
+
+    $cust = select_row("SELECT cust_wallet FROM hr_customer WHERE cust_id='$cust_id' AND salon_id='$salon_id'");
+    if (!$cust) return ['error' => 1, 'msg' => 'Customer not found.'];
+
+    $current_bal = (float)$cust['cust_wallet'];
+    $debit = 0;
+    $credit = 0;
+    $new_bal = $current_bal;
+
+    if ($adj_type === 'credit') {
+        $credit = $amount;
+        $new_bal = $current_bal + $amount;
+    } elseif ($adj_type === 'debit') {
+        $debit = $amount;
+        $new_bal = max(0, $current_bal - $amount);
+    } elseif ($adj_type === 'set') {
+        $new_bal = $amount;
+        if ($amount > $current_bal) {
+            $credit = $amount - $current_bal;
+        } else {
+            $debit = $current_bal - $amount;
+        }
+    }
+
+    $remark_esc = mysqli_real_escape_string($conn, $remark);
+
+    // Insert wallet entry
+    insert_query("INSERT INTO hr_customer_wallet SET
+        cust_id='$cust_id', debit='$debit', credit='$credit', balance='$new_bal',
+        remark='$remark_esc', created_date='$adj_date'");
+
+    // Update customer balance
+    update_query("UPDATE hr_customer SET cust_wallet='$new_bal' WHERE cust_id='$cust_id' AND salon_id='$salon_id'");
+
+    // Log in wallet audit log if exists
+    try {
+        insert_query("INSERT INTO hr_wallet_audit_log SET
+            cust_id='$cust_id', salon_id='$salon_id', user_id='$user_id',
+            old_balance='$current_bal', new_balance='$new_bal',
+            change_type='".($credit > 0 ? 'credit' : 'debit')."', reason='$remark_esc', reference='manual_register_sync'");
+    } catch (\Throwable $e) {}
+
+    return ['error' => 0, 'msg' => 'Wallet balance updated to ₹' . number_format($new_bal, 2) . '!'];
+}
+
+function get_customer_package_usage_details() {
+    global $salon_id, $conn;
+    $cp_id = intval($_POST['cp_id'] ?? 0);
+    $cp = select_row("SELECT cp.*, p.package_name FROM hr_customer_packages cp JOIN hr_packages_new p ON p.pkg_id = cp.pkg_id WHERE cp.cp_id='$cp_id' AND cp.salon_id='$salon_id'");
+    if (!$cp) return ['error' => 1, 'msg' => 'Package not found.'];
+
+    $items = select_array("SELECT pi.service_id, pi.service_name, pi.quantity,
+        COALESCE(SUM(u.qty_used), 0) AS used
+        FROM hr_package_items pi
+        LEFT JOIN hr_customer_package_usage u ON u.service_id=pi.service_id AND u.cp_id='$cp_id'
+        WHERE pi.pkg_id='{$cp['pkg_id']}' GROUP BY pi.item_id");
+
+    $result_items = [];
+    foreach ($items as $item) {
+        $total = (int)$item['quantity'];
+        $used = (int)$item['used'];
+        $result_items[] = [
+            'service_id'   => (int)$item['service_id'],
+            'service_name' => $item['service_name'],
+            'total_qty'    => $total,
+            'used_qty'     => $used,
+            'remaining_qty'=> max(0, $total - $used),
+        ];
+    }
+
+    return [
+        'error'        => 0,
+        'cp_id'        => $cp_id,
+        'package_name' => $cp['package_name'],
+        'cust_id'      => (int)$cp['cust_id'],
+        'items'        => $result_items,
+    ];
+}
+
+function update_customer_package_sessions() {
+    global $salon_id, $user_id, $conn;
+    $cp_id = intval($_POST['cp_id'] ?? 0);
+    $notes = mysqli_real_escape_string($conn, trim($_POST['notes'] ?? ''));
+
+    $cp = select_row("SELECT * FROM hr_customer_packages WHERE cp_id='$cp_id' AND salon_id='$salon_id'");
+    if (!$cp) return ['error' => 1, 'msg' => 'Customer package not found.'];
+
+    $qty_taken_map = isset($_POST['qty_taken']) && is_array($_POST['qty_taken']) ? $_POST['qty_taken'] : [];
+    $pkg_items = select_array("SELECT * FROM hr_package_items WHERE pkg_id='{$cp['pkg_id']}'");
+
+    foreach ($pkg_items as $pi) {
+        $sid = (int)$pi['service_id'];
+        $total_pkg_qty = (int)$pi['quantity'];
+        $target_taken = isset($qty_taken_map[$sid]) ? max(0, min($total_pkg_qty, intval($qty_taken_map[$sid]))) : 0;
+
+        // Calculate software billed usage (invoice_id > 0)
+        $software_billed = (int)select_row("SELECT COALESCE(SUM(qty_used), 0) AS sb FROM hr_customer_package_usage WHERE cp_id='$cp_id' AND service_id='$sid' AND invoice_id IS NOT NULL AND invoice_id > 0")['sb'];
+
+        // Remove old manual register entries (invoice_id IS NULL or invoice_id = 0)
+        update_query("DELETE FROM hr_customer_package_usage WHERE cp_id='$cp_id' AND service_id='$sid' AND (invoice_id IS NULL OR invoice_id = 0)");
+
+        // Calculate manual usage needed
+        $manual_needed = max(0, $target_taken - $software_billed);
+
+        if ($manual_needed > 0) {
+            insert_query("INSERT INTO hr_customer_package_usage SET
+                cp_id='$cp_id', pkg_id='{$cp['pkg_id']}', cust_id='{$cp['cust_id']}',
+                service_id='$sid', qty_used='$manual_needed', invoice_id=0, used_by='$user_id', used_at=NOW()");
+        }
+    }
+
+    // Check if package is now fully used or active
+    $all_items = select_array("SELECT pi.quantity, COALESCE(SUM(u.qty_used), 0) AS used
+        FROM hr_package_items pi
+        LEFT JOIN hr_customer_package_usage u ON u.service_id=pi.service_id AND u.cp_id='$cp_id'
+        WHERE pi.pkg_id='{$cp['pkg_id']}' GROUP BY pi.item_id");
+
+    $fully_used = true;
+    foreach ($all_items as $ai) {
+        if ((int)$ai['used'] < (int)$ai['quantity']) {
+            $fully_used = false;
+            break;
+        }
+    }
+
+    $new_status = $fully_used ? 'fully_used' : 'active';
+    update_query("UPDATE hr_customer_packages SET status='$new_status' WHERE cp_id='$cp_id'");
+
+    return ['error' => 0, 'msg' => 'Package session counts updated successfully!'];
+}
+
 function credit_customer_wallet($cust_id, $amount, $reference_cm_id, $remark) {
     $cust = select_row("SELECT cust_wallet FROM hr_customer WHERE cust_id='$cust_id'");
     $old_balance = floatval($cust['cust_wallet'] ?? 0);

@@ -254,12 +254,19 @@ var allPkgData = [];
 var memTable = null;
 var pkgTable = null;
 
+function formatLocalYMD(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+}
+
 function applyDatePreset(val) {
     if (!val || val === 'custom') return;
     
     var today = new Date();
     var from = new Date();
-    var to = new Date();
+    var to = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     
     if (val === 'this_month') {
         from = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -278,253 +285,269 @@ function applyDatePreset(val) {
         from = new Date(today.getFullYear(), today.getMonth() - 12, 1);
     }
     
-    $('#rpt_from').val(from.toISOString().split('T')[0]);
-    $('#rpt_to').val(to.toISOString().split('T')[0]);
+    $('#rpt_from').val(formatLocalYMD(from));
+    $('#rpt_to').val(formatLocalYMD(to));
     
-    // Auto-load reports when preset changes
-    $('#btn_load_reports').click();
+    loadReports();
 }
+
+$('#rpt_from, #rpt_to').on('change', function() {
+    $('#date_preset').val('custom');
+});
 
 function loadReports() {
     var from = $('#rpt_from').val();
     var to   = $('#rpt_to').val();
 
-    // Load membership report
-    $.post('ajax/membership_ajax.php', {method:'membership_report_data',from_date:from,to_date:to}, function(res){
-        var r = JSON.parse(res);
-        if(r.error==0){
-            $('#k_total_sold').text(r.total_sold);
-            $('#k_active').text(r.active_count);
-            $('#k_revenue').text('₹' + parseFloat(r.total_revenue).toLocaleString('en-IN',{maximumFractionDigits:0}));
-            $('#k_liability').text('₹' + parseFloat(r.wallet_liability).toLocaleString('en-IN',{maximumFractionDigits:0}));
+    var $btn = $('#btn_load_reports');
+    $btn.prop('disabled', true).html('<i class="ph ph-spinner ph-spin"></i> Loading...');
 
-            // Liability tab
-            var totalCredits = parseFloat(r.wallet_liability) + parseFloat(r.wallet_redeemed);
-            $('#adv_received').text('₹' + totalCredits.toLocaleString('en-IN',{maximumFractionDigits:2}));
-            $('#adv_redeemed').text('₹' + parseFloat(r.wallet_redeemed).toLocaleString('en-IN',{maximumFractionDigits:2}));
-            $('#adv_outstanding').text('₹' + parseFloat(r.wallet_liability).toLocaleString('en-IN',{maximumFractionDigits:2}));
+    if (memTable) {
+        memTable.destroy();
+        memTable = null;
+    }
+    $('#mem_report_body').html('<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);"><i class="ph ph-spinner ph-spin"></i> Loading memberships...</td></tr>');
+
+    if (pkgTable) {
+        pkgTable.destroy();
+        pkgTable = null;
+    }
+    $('#pkg_report_body').html('<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);"><i class="ph ph-spinner ph-spin"></i> Loading packages...</td></tr>');
+
+    // Load membership report
+    var p1 = $.post('ajax/membership_ajax.php', {method:'membership_report_data',from_date:from,to_date:to}, function(res){
+        try {
+            var r = (typeof res === 'object') ? res : JSON.parse(res);
+            if(r.error==0){
+                $('#k_total_sold').text(r.total_sold);
+                $('#k_active').text(r.active_count);
+                $('#k_revenue').text('₹' + parseFloat(r.total_revenue).toLocaleString('en-IN',{maximumFractionDigits:0}));
+                $('#k_liability').text('₹' + parseFloat(r.wallet_liability).toLocaleString('en-IN',{maximumFractionDigits:0}));
+
+                // Liability tab
+                var totalCredits = parseFloat(r.wallet_liability) + parseFloat(r.wallet_redeemed);
+                $('#adv_received').text('₹' + totalCredits.toLocaleString('en-IN',{maximumFractionDigits:2}));
+                $('#adv_redeemed').text('₹' + parseFloat(r.wallet_redeemed).toLocaleString('en-IN',{maximumFractionDigits:2}));
+                $('#adv_outstanding').text('₹' + parseFloat(r.wallet_liability).toLocaleString('en-IN',{maximumFractionDigits:2}));
 
                 allMembersData = r.members_list || [];
-            var rows = '';
-            if(allMembersData.length > 0) {
-                allMembersData.forEach(function(m){
-                    var statusColors = {active:'#059669',pending:'#d97706',expired:'#dc2626',refunded:'#6b7280',paused:'#7c3aed'};
-                    var sc = statusColors[m.status] || '#6b7280';
-                    var outstanding = parseFloat(m.remaining_amount||0);
-                    var mode = (m.payment_mode||'—').toUpperCase();
+                var rows = '';
+                if(allMembersData.length > 0) {
+                    allMembersData.forEach(function(m){
+                        var statusColors = {active:'#059669',pending:'#d97706',expired:'#dc2626',refunded:'#6b7280',paused:'#7c3aed'};
+                        var sc = statusColors[m.status] || '#6b7280';
+                        var outstanding = parseFloat(m.remaining_amount||0);
+                        var mode = (m.payment_mode||'—').toUpperCase();
 
-                    // Action buttons
-                    var clearBtn = outstanding > 0
-                        ? '<button class="btn-clear-outstanding" data-type="mem" data-id="'+m.cm_id+'" data-amount="'+outstanding.toFixed(2)+'" data-name="'+$('<div>').text(m.cust_name).html()+'" style="background:#fff7ed;color:#d97706;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128176; Clear Due</button>'
-                        : '';
-                    var printBtn = m.invoice_id
-                        ? '<a href="print_invoice.php?invoice_id='+m.invoice_id+'" target="_blank" style="background:#e0e7ff;color:#4f46e5;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">🖨 Print</a>'
-                        : '';
-                    var feedbackUrl = m.effective_invoice_id ? DOMAIN_SOFTWARE + 'feedback.php?inv=' + m.effective_invoice_id : '';
-                    var completeProfileUrl = m.effective_invoice_id ? DOMAIN_SOFTWARE + 'complete_profile.php?inv=' + m.effective_invoice_id : '';
+                        // Action buttons
+                        var clearBtn = outstanding > 0
+                            ? '<button class="btn-clear-outstanding" data-type="mem" data-id="'+m.cm_id+'" data-amount="'+outstanding.toFixed(2)+'" data-name="'+$('<div>').text(m.cust_name).html()+'" style="background:#fff7ed;color:#d97706;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128176; Clear Due</button>'
+                            : '';
+                        var printBtn = m.invoice_id
+                            ? '<a href="print_invoice.php?invoice_id='+m.invoice_id+'" target="_blank" style="background:#e0e7ff;color:#4f46e5;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">🖨 Print</a>'
+                            : '';
+                        var feedbackUrl = m.effective_invoice_id ? DOMAIN_SOFTWARE + 'feedback.php?inv=' + m.effective_invoice_id : '';
+                        var completeProfileUrl = m.effective_invoice_id ? DOMAIN_SOFTWARE + 'complete_profile.php?inv=' + m.effective_invoice_id : '';
 
-                    var waMsg = 'Hello *' + m.cust_name + '*,\n\n' +
-                        'Thank you for choosing *' + SALON_NAME + '*! We are delighted to confirm your *' + m.plan_name + '* membership.\n\n' +
-                        '*Payment Details:*\n' +
-                        '• Paid: ₹' + parseFloat(m.paid_amount).toFixed(2) + '\n' +
-                        '• Outstanding: ₹' + outstanding.toFixed(2) + '\n' +
-                        '• Expiry Date: ' + (m.expiry_date || '—') + '\n\n' +
-                        (feedbackUrl ? '📝 *Share your feedback:* ' + feedbackUrl + '\n' : '') +
-                        (completeProfileUrl ? '👤 *Complete your profile:* ' + completeProfileUrl + '\n\n' : '\n') +
-                        'We look forward to welcoming you at your next visit!\n\n' +
-                        'Warm regards,\n' +
-                        'Team *' + SALON_NAME + '*';
-                    var waPhone = (m.cust_mobile||'').replace(/[^0-9]/g,'');
-                    var waBtn = waPhone ? '<a href="https://wa.me/91'+waPhone+'?text='+encodeURIComponent(waMsg)+'" target="_blank" style="background:#dcfce7;color:#15803d;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">&#128172; WA</a>' : '';
-                    var walletBtn = '<button class="modalButtonCommon" data-href="customer_membership_view.php?cust_id='+m.cust_id+'" title="Wallet Ledger" style="background:#f3e8ff;color:#9333ea;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128179; Ledger</button>';
+                        var waMsg = 'Hello *' + m.cust_name + '*,\n\n' +
+                            'Thank you for choosing *' + SALON_NAME + '*! We are delighted to confirm your *' + m.plan_name + '* membership.\n\n' +
+                            '*Payment Details:*\n' +
+                            '• Paid: ₹' + parseFloat(m.paid_amount).toFixed(2) + '\n' +
+                            '• Outstanding: ₹' + outstanding.toFixed(2) + '\n' +
+                            '• Expiry Date: ' + (m.expiry_date || '—') + '\n\n' +
+                            (feedbackUrl ? '📝 *Share your feedback:* ' + feedbackUrl + '\n' : '') +
+                            (completeProfileUrl ? '👤 *Complete your profile:* ' + completeProfileUrl + '\n\n' : '\n') +
+                            'We look forward to welcoming you at your next visit!\n\n' +
+                            'Warm regards,\n' +
+                            'Team *' + SALON_NAME + '*';
+                        var waPhone = (m.cust_mobile||'').replace(/[^0-9]/g,'');
+                        var waBtn = waPhone ? '<a href="https://wa.me/91'+waPhone+'?text='+encodeURIComponent(waMsg)+'" target="_blank" style="background:#dcfce7;color:#15803d;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">&#128172; WA</a>' : '';
+                        var walletBtn = '<button class="modalButtonCommon" data-href="customer_membership_view.php?cust_id='+m.cust_id+'" title="Wallet Ledger" style="background:#f3e8ff;color:#9333ea;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128179; Ledger</button>';
 
-                    rows += '<tr>' +
-                        '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+m.cust_name+'</td>' +
-                        '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+m.cust_mobile+'</td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+m.plan_name+'</td>' +
-                        '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+(m.start_date||'—')+'</td>' +
-                        '<td data-order="'+parseFloat(m.paid_amount)+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:#059669;font-weight:600;">₹'+parseFloat(m.paid_amount).toFixed(2)+'</td>' +
-                        '<td data-order="'+outstanding+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';">₹'+outstanding.toFixed(2)+'</td>' +
-                        '<td data-order="'+parseFloat(m.wallet_credit||0)+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:var(--primary);font-weight:600;">₹'+parseFloat(m.wallet_credit||0).toFixed(2)+'</td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;">'+mode+'</td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><span style="background:'+sc+'20;color:'+sc+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">'+m.status+'</span></td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:var(--text-muted);font-size:13px;">'+(m.expiry_date||'—')+'</td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="display:flex;gap:4px;flex-wrap:nowrap;">'+clearBtn+printBtn+walletBtn+waBtn+'</div></td>' +
-                    '</tr>';
-                });
-            } else {
-                rows = '<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
-            }
-            $('#mem_report_body').html(rows);
-
-            if (memTable) {
-                memTable.destroy();
-            }
-
-            if (allMembersData.length > 0) {
-                memTable = $('#mem_report_table').DataTable({
-                    responsive: true,
-                    pageLength: 10,
-                    order: [[3, 'desc']],
-                    columnDefs: [
-                        { orderable: false, targets: [1, 10] }
-                    ]
-                });
-            } else {
-                memTable = null;
-            }
-
-            var memModes = [];
-            allMembersData.forEach(function(m){
-                var m_mode = (m.payment_mode || '—').trim().toUpperCase();
-                if(m_mode && m_mode !== '—' && memModes.indexOf(m_mode) === -1) {
-                    memModes.push(m_mode);
+                        rows += '<tr>' +
+                            '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+m.cust_name+'</td>' +
+                            '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+m.cust_mobile+'</td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+m.plan_name+'</td>' +
+                            '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+(m.start_date||'—')+'</td>' +
+                            '<td data-order="'+parseFloat(m.paid_amount)+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:#059669;font-weight:600;">₹'+parseFloat(m.paid_amount).toFixed(2)+'</td>' +
+                            '<td data-order="'+outstanding+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';">₹'+outstanding.toFixed(2)+'</td>' +
+                            '<td data-order="'+parseFloat(m.wallet_credit||0)+'" style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:var(--primary);font-weight:600;">₹'+parseFloat(m.wallet_credit||0).toFixed(2)+'</td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;">'+mode+'</td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><span style="background:'+sc+'20;color:'+sc+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">'+m.status+'</span></td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;color:var(--text-muted);font-size:13px;">'+(m.expiry_date||'—')+'</td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="display:flex;gap:4px;flex-wrap:nowrap;">'+clearBtn+printBtn+walletBtn+waBtn+'</div></td>' +
+                        '</tr>';
+                    });
+                } else {
+                    rows = '<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
                 }
-            });
-            var modeOptions = '<option value="">All Payment Modes</option>';
-            memModes.sort().forEach(function(mode){
-                modeOptions += '<option value="'+mode+'">'+mode+'</option>';
-            });
-            $('#mem_mode_filter').html(modeOptions);
+                $('#mem_report_body').html(rows);
 
-            $('#mem_status_filter').val('');
-            $('#mem_mode_filter').val('');
+                if (allMembersData.length > 0) {
+                    memTable = $('#mem_report_table').DataTable({
+                        responsive: true,
+                        pageLength: 10,
+                        order: [[3, 'desc']],
+                        columnDefs: [
+                            { orderable: false, targets: [1, 10] }
+                        ]
+                    });
+                }
+
+                var memModes = [];
+                allMembersData.forEach(function(m){
+                    var m_mode = (m.payment_mode || '—').trim().toUpperCase();
+                    if(m_mode && m_mode !== '—' && memModes.indexOf(m_mode) === -1) {
+                        memModes.push(m_mode);
+                    }
+                });
+                var modeOptions = '<option value="">All Payment Modes</option>';
+                memModes.sort().forEach(function(mode){
+                    modeOptions += '<option value="'+mode+'">'+mode+'</option>';
+                });
+                $('#mem_mode_filter').html(modeOptions);
+
+                $('#mem_status_filter').val('');
+                $('#mem_mode_filter').val('');
+            }
+        } catch(e) {
+            console.error("Error processing membership data:", e);
         }
     });
 
     // Load package report
-    $.post('ajax/membership_ajax.php', {method:'package_report_data',from_date:from,to_date:to}, function(res){
-        var r = JSON.parse(res);
-        if(r.error==0){
-            $('#k_pkg_active').text(r.active_count);
-            $('#k_expiring').text(r.expiring_soon);
+    var p2 = $.post('ajax/membership_ajax.php', {method:'package_report_data',from_date:from,to_date:to}, function(res){
+        try {
+            var r = (typeof res === 'object') ? res : JSON.parse(res);
+            if(r.error==0){
+                $('#k_pkg_active').text(r.active_count);
+                $('#k_expiring').text(r.expiring_soon);
 
-            // Package table
-            allPkgData = r.pkg_list || [];
-            var rows = '';
-            if(allPkgData.length > 0) {
-                allPkgData.forEach(function(p){
-                    var sc = p.status=='active' ? '#059669' : (p.status=='expired'?'#dc2626':'#6b7280');
-                    var outstanding = parseFloat(p.remaining_amount||0);
-                    var mode = (p.payment_mode||'—').toUpperCase();
+                // Package table
+                allPkgData = r.pkg_list || [];
+                var rows = '';
+                if(allPkgData.length > 0) {
+                    allPkgData.forEach(function(p){
+                        var sc = p.status=='active' ? '#059669' : (p.status=='expired'?'#dc2626':'#6b7280');
+                        var outstanding = parseFloat(p.remaining_amount||0);
+                        var mode = (p.payment_mode||'—').toUpperCase();
 
-                    var clearBtn = outstanding > 0
-                        ? '<button class="btn-clear-outstanding" data-type="pkg" data-id="'+p.cp_id+'" data-amount="'+outstanding.toFixed(2)+'" data-name="'+$('<div>').text(p.cust_name).html()+'" style="background:#fff7ed;color:#d97706;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128176; Clear Due</button>'
-                        : '';
-                    var printBtn = p.invoice_id
-                        ? '<a href="print_invoice.php?invoice_id='+p.invoice_id+'" target="_blank" style="background:#e0e7ff;color:#4f46e5;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">🖨 Print</a>'
-                        : '';
-                    var feedbackUrl = p.effective_invoice_id ? DOMAIN_SOFTWARE + 'feedback.php?inv=' + p.effective_invoice_id : '';
-                    var completeProfileUrl = p.effective_invoice_id ? DOMAIN_SOFTWARE + 'complete_profile.php?inv=' + p.effective_invoice_id : '';
+                        var clearBtn = outstanding > 0
+                            ? '<button class="btn-clear-outstanding" data-type="pkg" data-id="'+p.cp_id+'" data-amount="'+outstanding.toFixed(2)+'" data-name="'+$('<div>').text(p.cust_name).html()+'" style="background:#fff7ed;color:#d97706;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128176; Clear Due</button>'
+                            : '';
+                        var printBtn = p.invoice_id
+                            ? '<a href="print_invoice.php?invoice_id='+p.invoice_id+'" target="_blank" style="background:#e0e7ff;color:#4f46e5;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">🖨 Print</a>'
+                            : '';
+                        var feedbackUrl = p.effective_invoice_id ? DOMAIN_SOFTWARE + 'feedback.php?inv=' + p.effective_invoice_id : '';
+                        var completeProfileUrl = p.effective_invoice_id ? DOMAIN_SOFTWARE + 'complete_profile.php?inv=' + p.effective_invoice_id : '';
 
-                    var waMsg2 = 'Hello *' + p.cust_name + '*,\n\n' +
-                        'Thank you for choosing *' + SALON_NAME + '*! We are delighted to confirm your *' + p.package_name + '* package.\n\n' +
-                        '*Payment Details:*\n' +
-                        '• Paid: ₹' + parseFloat(p.paid_amount || 0).toFixed(2) + '\n' +
-                        '• Outstanding: ₹' + outstanding.toFixed(2) + '\n' +
-                        '• Expiry Date: ' + (p.expiry_date || '—') + '\n\n' +
-                        (feedbackUrl ? '📝 *Share your feedback:* ' + feedbackUrl + '\n' : '') +
-                        (completeProfileUrl ? '👤 *Complete your profile:* ' + completeProfileUrl + '\n\n' : '\n') +
-                        'We look forward to welcoming you soon!\n\n' +
-                        'Warm regards,\n' +
-                        'Team *' + SALON_NAME + '*';
-                    var waPhone2 = (p.cust_mobile||'').replace(/[^0-9]/g,'');
-                    var waBtn = waPhone2 ? '<a href="https://wa.me/91'+waPhone2+'?text='+encodeURIComponent(waMsg2)+'" target="_blank" style="background:#dcfce7;color:#15803d;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">&#128172; WA</a>' : '';
-                    var walletBtn2 = '<button class="modalButtonCommon" data-href="customer_membership_view.php?cust_id='+p.cust_id+'" title="Wallet Ledger" style="background:#f3e8ff;color:#9333ea;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128179; Ledger</button>';
+                        var waMsg2 = 'Hello *' + p.cust_name + '*,\n\n' +
+                            'Thank you for choosing *' + SALON_NAME + '*! We are delighted to confirm your *' + p.package_name + '* package.\n\n' +
+                            '*Payment Details:*\n' +
+                            '• Paid: ₹' + parseFloat(p.paid_amount || 0).toFixed(2) + '\n' +
+                            '• Outstanding: ₹' + outstanding.toFixed(2) + '\n' +
+                            '• Expiry Date: ' + (p.expiry_date || '—') + '\n\n' +
+                            (feedbackUrl ? '📝 *Share your feedback:* ' + feedbackUrl + '\n' : '') +
+                            (completeProfileUrl ? '👤 *Complete your profile:* ' + completeProfileUrl + '\n\n' : '\n') +
+                            'We look forward to welcoming you soon!\n\n' +
+                            'Warm regards,\n' +
+                            'Team *' + SALON_NAME + '*';
+                        var waPhone2 = (p.cust_mobile||'').replace(/[^0-9]/g,'');
+                        var waBtn = waPhone2 ? '<a href="https://wa.me/91'+waPhone2+'?text='+encodeURIComponent(waMsg2)+'" target="_blank" style="background:#dcfce7;color:#15803d;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">&#128172; WA</a>' : '';
+                        var walletBtn2 = '<button class="modalButtonCommon" data-href="customer_membership_view.php?cust_id='+p.cust_id+'" title="Wallet Ledger" style="background:#f3e8ff;color:#9333ea;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128179; Ledger</button>';
 
-                    rows += '<tr>' +
-                        '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+p.cust_name+'</td>' +
-                        '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+p.cust_mobile+'</td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+p.package_name+'</td>' +
-                        '<td data-order="'+parseFloat(p.purchase_price)+'" style="padding:11px 16px;color:var(--primary);font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.purchase_price).toFixed(2)+'</td>' +
-                        '<td data-order="'+parseFloat(p.paid_amount||0)+'" style="padding:11px 16px;color:#059669;font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</td>' +
-                        '<td data-order="'+outstanding+'" style="padding:11px 16px;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';border-bottom:1px solid #f1f5f9;">₹'+outstanding.toFixed(2)+'</td>' +
-                        '<td style="padding:11px 16px;font-size:12px;border-bottom:1px solid #f1f5f9;">'+mode+'</td>' +
-                        '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+p.purchase_date+'</td>' +
-                        '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+(p.expiry_date||'—')+'</td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><span style="background:'+sc+'20;color:'+sc+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">'+p.status+'</span></td>' +
-                        '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="display:flex;gap:4px;flex-wrap:nowrap;">'+clearBtn+printBtn+walletBtn2+waBtn+'</div></td>' +
-                    '</tr>';
-                });
-            } else {
-                rows = '<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
-            }
-            
-            $('#pkg_report_body').html(rows);
-
-            if (pkgTable) {
-                pkgTable.destroy();
-            }
-
-            if (allPkgData.length > 0) {
-                pkgTable = $('#pkg_report_table').DataTable({
-                    responsive: true,
-                    pageLength: 10,
-                    order: [[7, 'desc']],
-                    columnDefs: [
-                        { orderable: false, targets: [10] }
-                    ]
-                });
-            } else {
-                pkgTable = null;
-            }
-
-            var pkgModes = [];
-            allPkgData.forEach(function(p){
-                var p_mode = (p.payment_mode || '—').trim().toUpperCase();
-                if(p_mode && p_mode !== '—' && pkgModes.indexOf(p_mode) === -1) {
-                    pkgModes.push(p_mode);
+                        rows += '<tr>' +
+                            '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+p.cust_name+'</td>' +
+                            '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+p.cust_mobile+'</td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+p.package_name+'</td>' +
+                            '<td data-order="'+parseFloat(p.purchase_price)+'" style="padding:11px 16px;color:var(--primary);font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.purchase_price).toFixed(2)+'</td>' +
+                            '<td data-order="'+parseFloat(p.paid_amount||0)+'" style="padding:11px 16px;color:#059669;font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</td>' +
+                            '<td data-order="'+outstanding+'" style="padding:11px 16px;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';border-bottom:1px solid #f1f5f9;">₹'+outstanding.toFixed(2)+'</td>' +
+                            '<td style="padding:11px 16px;font-size:12px;border-bottom:1px solid #f1f5f9;">'+mode+'</td>' +
+                            '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+p.purchase_date+'</td>' +
+                            '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+(p.expiry_date||'—')+'</td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><span style="background:'+sc+'20;color:'+sc+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">'+p.status+'</span></td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="display:flex;gap:4px;flex-wrap:nowrap;">'+clearBtn+printBtn+walletBtn2+waBtn+'</div></td>' +
+                        '</tr>';
+                    });
+                } else {
+                    rows = '<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
                 }
-            });
-            var pkgModeOptions = '<option value="">All Payment Modes</option>';
-            pkgModes.sort().forEach(function(mode){
-                pkgModeOptions += '<option value="'+mode+'">'+mode+'</option>';
-            });
-            $('#pkg_mode_filter').html(pkgModeOptions);
+                
+                $('#pkg_report_body').html(rows);
 
-            $('#pkg_status_filter').val('');
-            $('#pkg_mode_filter').val('');
+                if (allPkgData.length > 0) {
+                    pkgTable = $('#pkg_report_table').DataTable({
+                        responsive: true,
+                        pageLength: 10,
+                        order: [[7, 'desc']],
+                        columnDefs: [
+                            { orderable: false, targets: [10] }
+                        ]
+                    });
+                }
 
-            // Liability tab - service liability
-            if(r.liability_rows && r.liability_rows.length > 0) {
-                var liab = '<table style="width:100%;border-collapse:collapse;">';
-                liab += '<tr style="background:#f8fafc;"><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-muted);">Service</th><th style="padding:10px 12px;text-align:right;font-size:12px;color:var(--text-muted);">Remaining Sessions</th><th style="padding:10px 12px;text-align:right;font-size:12px;color:var(--text-muted);">Est. Liability</th></tr>';
-                r.liability_rows.forEach(function(l){
-                    var remaining = (parseInt(l.quantity) - parseInt(l.total_used)) * parseInt(l.pkg_count);
-                    var liab_val = remaining * parseFloat(l.service_price);
-                    liab += '<tr><td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">'+l.service_name+'</td>' +
-                        '<td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600;">'+remaining+'</td>' +
-                        '<td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;color:#dc2626;font-weight:600;">₹'+liab_val.toFixed(2)+'</td></tr>';
+                var pkgModes = [];
+                allPkgData.forEach(function(p){
+                    var p_mode = (p.payment_mode || '—').trim().toUpperCase();
+                    if(p_mode && p_mode !== '—' && pkgModes.indexOf(p_mode) === -1) {
+                        pkgModes.push(p_mode);
+                    }
                 });
-                liab += '</table>';
-                $('#pkg_liability_body').html(liab);
-            } else {
-                $('#pkg_liability_body').html('<p style="color:var(--text-muted);text-align:center;padding:20px;">No active packages.</p>');
-            }
-
-            // Expiring tab
-            // Load expiring packages directly
-            $.post('ajax/membership_ajax.php', {method:'package_report_data',from_date:'2000-01-01',to_date:from}, function(){});
-            var expiring_pkgs = allPkgData.filter(function(p){
-                if(p.status != 'active') return false;
-                var exp = new Date(p.expiry_date);
-                var now = new Date();
-                var diff = (exp - now) / 86400000;
-                return diff >= 0 && diff <= 30;
-            });
-            if(expiring_pkgs.length > 0) {
-                var ehtml = '';
-                expiring_pkgs.forEach(function(p){
-                    var diff = Math.ceil((new Date(p.expiry_date) - new Date()) / 86400000);
-                    ehtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f1f5f9;">' +
-                        '<div><strong>'+p.cust_name+'</strong><br><span style="color:var(--text-muted);font-size:13px;">'+p.package_name+' | '+p.cust_mobile+'</span></div>' +
-                        '<div style="text-align:right;"><span style="background:#fff7ed;color:#92400e;padding:4px 12px;border-radius:8px;font-size:13px;font-weight:700;">'+diff+' days left</span><br><span style="font-size:12px;color:var(--text-muted);">Expires: '+p.expiry_date+'</span></div></div>';
+                var pkgModeOptions = '<option value="">All Payment Modes</option>';
+                pkgModes.sort().forEach(function(mode){
+                    pkgModeOptions += '<option value="'+mode+'">'+mode+'</option>';
                 });
-                $('#expiring_body').html(ehtml);
-            } else {
-                $('#expiring_body').html('<p style="text-align:center;color:var(--text-muted);padding:30px;">No packages expiring in the next 30 days.</p>');
+                $('#pkg_mode_filter').html(pkgModeOptions);
+
+                $('#pkg_status_filter').val('');
+                $('#pkg_mode_filter').val('');
+
+                // Liability tab - service liability
+                if(r.liability_rows && r.liability_rows.length > 0) {
+                    var liab = '<table style="width:100%;border-collapse:collapse;">';
+                    liab += '<tr style="background:#f8fafc;"><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-muted);">Service</th><th style="padding:10px 12px;text-align:right;font-size:12px;color:var(--text-muted);">Remaining Sessions</th><th style="padding:10px 12px;text-align:right;font-size:12px;color:var(--text-muted);">Est. Liability</th></tr>';
+                    r.liability_rows.forEach(function(l){
+                        var remaining = (parseInt(l.quantity) - parseInt(l.total_used)) * parseInt(l.pkg_count);
+                        var liab_val = remaining * parseFloat(l.service_price);
+                        liab += '<tr><td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">'+l.service_name+'</td>' +
+                            '<td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600;">'+remaining+'</td>' +
+                            '<td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;color:#dc2626;font-weight:600;">₹'+liab_val.toFixed(2)+'</td></tr>';
+                    });
+                    liab += '</table>';
+                    $('#pkg_liability_body').html(liab);
+                } else {
+                    $('#pkg_liability_body').html('<p style="color:var(--text-muted);text-align:center;padding:20px;">No active packages.</p>');
+                }
+
+                // Expiring tab
+                var expiring_pkgs = allPkgData.filter(function(p){
+                    if(p.status != 'active') return false;
+                    var exp = new Date(p.expiry_date);
+                    var now = new Date();
+                    var diff = (exp - now) / 86400000;
+                    return diff >= 0 && diff <= 30;
+                });
+                if(expiring_pkgs.length > 0) {
+                    var ehtml = '';
+                    expiring_pkgs.forEach(function(p){
+                        var diff = Math.ceil((new Date(p.expiry_date) - new Date()) / 86400000);
+                        ehtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f1f5f9;">' +
+                            '<div><strong>'+p.cust_name+'</strong><br><span style="color:var(--text-muted);font-size:13px;">'+p.package_name+' | '+p.cust_mobile+'</span></div>' +
+                            '<div style="text-align:right;"><span style="background:#fff7ed;color:#92400e;padding:4px 12px;border-radius:8px;font-size:13px;font-weight:700;">'+diff+' days left</span><br><span style="font-size:12px;color:var(--text-muted);">Expires: '+p.expiry_date+'</span></div></div>';
+                    });
+                    $('#expiring_body').html(ehtml);
+                } else {
+                    $('#expiring_body').html('<p style="text-align:center;color:var(--text-muted);padding:30px;">No packages expiring in the next 30 days.</p>');
+                }
             }
+        } catch(e) {
+            console.error("Error processing package data:", e);
         }
+    });
+
+    $.when(p1, p2).always(function(){
+        $btn.prop('disabled', false).html('<i class="ph ph-funnel"></i> Load Reports');
     });
 }
 
@@ -546,12 +569,12 @@ $('#mem_mode_filter').on('change', function() {
 // Bind Custom Filters for Packages
 $('#pkg_status_filter').on('change', function() {
     if (pkgTable) {
-        pkgTable.column(8).search(this.value).draw();
+        pkgTable.column(9).search(this.value).draw();
     }
 });
 $('#pkg_mode_filter').on('change', function() {
     if (pkgTable) {
-        pkgTable.column(5).search(this.value).draw();
+        pkgTable.column(6).search(this.value).draw();
     }
 });
 
