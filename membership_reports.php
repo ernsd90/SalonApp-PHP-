@@ -162,6 +162,7 @@ $salon_name_val = $salon_row ? $salon_row['salon_name'] : 'Our Salon';
                     <option value="expired">Expired</option>
                     <option value="refunded">Refunded</option>
                     <option value="fully_used">Fully Used</option>
+                    <option value="deactivated">Deactivated</option>
                 </select>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
@@ -169,6 +170,12 @@ $salon_name_val = $salon_row ? $salon_row['salon_name'] : 'Our Salon';
                 <select id="pkg_mode_filter" class="form-control" style="width:180px;padding:6px 12px;height:auto;font-size:13px;border-radius:8px;">
                     <option value="">All Payment Modes</option>
                 </select>
+            </div>
+            <div style="display:flex;align-items:center;margin-left:auto;">
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:700;color:#b91c1c;background:#fee2e2;padding:6px 12px;border-radius:8px;border:1px solid #fecaca;margin:0;" title="Show only packages with suspected duplicate entries">
+                    <input type="checkbox" id="pkg_dup_filter" style="accent-color:#e11d48;cursor:pointer;">
+                    <i class="ph-bold ph-warning-circle"></i> Highlighted Duplicates Only
+                </label>
             </div>
         </div>
 
@@ -249,6 +256,7 @@ $('.rpt-tab').click(function(){
 
 const DOMAIN_SOFTWARE = "<?= DOMAIN_SOFTWARE ?>";
 const SALON_NAME = <?= json_encode($salon_name_val) ?>;
+const IS_SUPERADMIN = <?= (function_exists('is_superadmin') && is_superadmin()) ? 'true' : 'false' ?>;
 var allMembersData = [];
 var allPkgData = [];
 var memTable = null;
@@ -428,12 +436,28 @@ function loadReports() {
                 var rows = '';
                 if(allPkgData.length > 0) {
                     allPkgData.forEach(function(p){
-                        var sc = p.status=='active' ? '#059669' : (p.status=='expired'?'#dc2626':'#6b7280');
+                        var isDup = (p.is_duplicate == 1);
+                        var rowStyle = isDup ? 'background:#fff1f2;border-left:4px solid #f43f5e;' : '';
+                        var dupBadge = isDup 
+                            ? '<div style="margin-top:4px;"><span style="background:#fee2e2;color:#b91c1c;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;" title="Same customer, package, and timing detected"><i class="ph-bold ph-warning-circle"></i> Duplicate Alert ('+p.dup_count+' entries)</span></div>' 
+                            : '';
+
+                        var statusColors = {active:'#059669',expired:'#dc2626',refunded:'#6b7280',fully_used:'#7c3aed',deactivated:'#991b1b'};
+                        var sc = statusColors[p.status] || '#6b7280';
+                        var statusDisplay = '<span style="background:'+sc+'20;color:'+sc+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;text-transform:capitalize;">'+p.status.replace('_',' ')+'</span>';
+                        if (p.status === 'deactivated' && p.deactivated_reason) {
+                            statusDisplay += '<div style="font-size:11px;color:#991b1b;margin-top:4px;max-width:160px;line-height:1.2;font-style:italic;" title="'+$('<div>').text(p.deactivated_reason).html()+'">Reason: '+$('<div>').text(p.deactivated_reason).html()+'</div>';
+                        }
+
+                        var timeStr = p.created_at ? p.created_at.substring(11, 16) : '';
+                        var timingDisplay = '<div style="font-weight:600;">' + p.purchase_date + '</div>' + 
+                            (timeStr ? '<div style="font-size:11px;color:var(--text-muted);"><i class="ph ph-clock"></i> ' + timeStr + '</div>' : '');
+
                         var outstanding = parseFloat(p.remaining_amount||0);
                         var mode = (p.payment_mode||'—').toUpperCase();
 
-                        var clearBtn = outstanding > 0
-                            ? '<button class="btn-clear-outstanding" data-type="pkg" data-id="'+p.cp_id+'" data-amount="'+outstanding.toFixed(2)+'" data-name="'+$('<div>').text(p.cust_name).html()+'" style="background:#fff7ed;color:#d97706;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128176; Clear Due</button>'
+                        var clearBtn = (outstanding > 0 && p.status !== 'deactivated')
+                            ? '<button class="btn-clear-outstanding" data-type="pkg" data-id="'+p.cp_id+'" data-amount="'+outstanding.toFixed(2)+'" data-name="'+$('<div>').text(p.package_name).html()+'" style="background:#fff7ed;color:#d97706;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128176; Clear Due</button>'
                             : '';
                         var printBtn = p.invoice_id
                             ? '<a href="print_invoice.php?invoice_id='+p.invoice_id+'" target="_blank" style="background:#e0e7ff;color:#4f46e5;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">🖨 Print</a>'
@@ -456,18 +480,22 @@ function loadReports() {
                         var waBtn = waPhone2 ? '<a href="https://wa.me/91'+waPhone2+'?text='+encodeURIComponent(waMsg2)+'" target="_blank" style="background:#dcfce7;color:#15803d;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">&#128172; WA</a>' : '';
                         var walletBtn2 = '<button class="modalButtonCommon" data-href="customer_membership_view.php?cust_id='+p.cust_id+'" title="Wallet Ledger" style="background:#f3e8ff;color:#9333ea;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128179; Ledger</button>';
 
-                        rows += '<tr>' +
+                        var deactivateBtn = (IS_SUPERADMIN && p.status !== 'deactivated') 
+                            ? '<button class="btn-deactivate-pkg" data-id="'+p.cp_id+'" data-name="'+$('<div>').text(p.package_name).html()+'" data-cust="'+$('<div>').text(p.cust_name).html()+'" data-mobile="'+(p.cust_mobile||'')+'" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:3px;" title="Superadmin: Deactivate duplicate/invalid package"><i class="ph-bold ph-prohibit"></i> Deactivate</button>'
+                            : '';
+
+                        rows += '<tr style="'+rowStyle+'">' +
                             '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+p.cust_name+'</td>' +
                             '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+p.cust_mobile+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+p.package_name+'</td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="font-weight:600;">'+p.package_name+'</div>'+dupBadge+'</td>' +
                             '<td data-order="'+parseFloat(p.purchase_price)+'" style="padding:11px 16px;color:var(--primary);font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.purchase_price).toFixed(2)+'</td>' +
                             '<td data-order="'+parseFloat(p.paid_amount||0)+'" style="padding:11px 16px;color:#059669;font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</td>' +
                             '<td data-order="'+outstanding+'" style="padding:11px 16px;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';border-bottom:1px solid #f1f5f9;">₹'+outstanding.toFixed(2)+'</td>' +
                             '<td style="padding:11px 16px;font-size:12px;border-bottom:1px solid #f1f5f9;">'+mode+'</td>' +
-                            '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+p.purchase_date+'</td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+timingDisplay+'</td>' +
                             '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+(p.expiry_date||'—')+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><span style="background:'+sc+'20;color:'+sc+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;">'+p.status+'</span></td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="display:flex;gap:4px;flex-wrap:nowrap;">'+clearBtn+printBtn+walletBtn2+waBtn+'</div></td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+statusDisplay+'</td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="display:flex;gap:4px;flex-wrap:nowrap;">'+clearBtn+printBtn+walletBtn2+deactivateBtn+waBtn+'</div></td>' +
                         '</tr>';
                     });
                 } else {
@@ -577,6 +605,15 @@ $('#pkg_mode_filter').on('change', function() {
         pkgTable.column(6).search(this.value).draw();
     }
 });
+$('#pkg_dup_filter').on('change', function() {
+    if (pkgTable) {
+        if (this.checked) {
+            pkgTable.column(2).search('Duplicate Alert').draw();
+        } else {
+            pkgTable.column(2).search('').draw();
+        }
+    }
+});
 
 // CSV Export
 $('#btn_export_csv').click(function(){
@@ -649,6 +686,53 @@ $('#btn_export_csv').click(function(){
     </div>
 </div>
 
+<!-- Deactivate Package Modal (Superadmin Only) -->
+<div id="deactivatePackageModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:white;border-radius:20px;width:100%;max-width:440px;margin:20px;box-shadow:0 25px 50px -12px rgba(0,0,0,.4);padding:26px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+            <div style="width:40px;height:40px;background:#fee2e2;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#dc2626;">
+                <i class="ph-bold ph-warning-circle"></i>
+            </div>
+            <div>
+                <div style="font-weight:800;font-size:16px;color:#0f172a;">Deactivate Package</div>
+                <div style="font-size:12px;color:var(--text-muted);">Superadmin action to void duplicate / invalid package</div>
+            </div>
+            <button onclick="$('#deactivatePackageModal').hide();" style="margin-left:auto;background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8;">×</button>
+        </div>
+
+        <div style="background:#f8fafc;border:1px solid var(--border-color);border-radius:12px;padding:14px;margin-bottom:16px;">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:4px;">Target Package</div>
+            <div id="deact_modal_pkg" style="font-size:15px;font-weight:700;color:#0f172a;"></div>
+            <div id="deact_modal_cust" style="font-size:13px;color:var(--text-muted);margin-top:2px;"></div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px;">
+            <label style="font-weight:700;font-size:13px;">Quick Reason</label>
+            <select id="deact_quick_reason" class="form-control" onchange="if(this.value)$('#deact_reason').val(this.value);" style="font-size:13px;">
+                <option value="">-- Choose common reason or type below --</option>
+                <option value="Duplicate entry / accidental double billing">Duplicate entry / accidental double billing</option>
+                <option value="Duplicate package purchase on same visit">Duplicate package purchase on same visit</option>
+                <option value="Customer requested cancellation">Customer requested cancellation</option>
+                <option value="System glitch during checkout">System glitch during checkout</option>
+            </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom:18px;">
+            <label style="font-weight:700;font-size:13px;">Deactivation Reason <span style="color:#dc2626;">*</span></label>
+            <textarea id="deact_reason" class="form-control" rows="3" placeholder="Explain why this package is being deactivated (e.g. Duplicate of package #...)" style="font-size:13px;"></textarea>
+        </div>
+
+        <input type="hidden" id="deact_cp_id">
+
+        <div style="display:flex;gap:10px;">
+            <button type="button" onclick="submitDeactivatePackage()" class="btn-primary" style="flex:1;margin:0;padding:12px;background:#dc2626;border-color:#dc2626;">
+                <i class="ph-bold ph-prohibit"></i> Confirm Deactivation
+            </button>
+            <button type="button" onclick="$('#deactivatePackageModal').hide();" class="btn-secondary" style="width:auto;margin:0;padding:12px 16px;">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <script>
 // Modal loader functions
 $(document).on('click', '.modalButtonCommon', function(e) {
@@ -703,6 +787,55 @@ function submitClearOutstanding() {
             $('#clearOutstandingModal').hide();
             loadReports();
         } catch(e) { alert('Server error. Please try again.'); }
+    });
+}
+
+// Deactivate package handler (Superadmin only)
+$(document).on('click', '.btn-deactivate-pkg', function(){
+    var id = $(this).data('id');
+    var pkgName = $(this).data('name');
+    var custName = $(this).data('cust');
+    var mobile = $(this).data('mobile');
+
+    $('#deact_cp_id').val(id);
+    $('#deact_modal_pkg').text(pkgName + ' (ID #' + id + ')');
+    $('#deact_modal_cust').text(custName + (mobile ? ' • ' + mobile : ''));
+    $('#deact_quick_reason').val('');
+    $('#deact_reason').val('');
+    $('#deactivatePackageModal').css('display', 'flex');
+});
+
+function submitDeactivatePackage() {
+    var id = $('#deact_cp_id').val();
+    var reason = $.trim($('#deact_reason').val());
+
+    if (!reason) {
+        alert('Please specify a reason for deactivation.');
+        $('#deact_reason').focus();
+        return;
+    }
+
+    if (!confirm('Are you sure you want to deactivate package #' + id + '?\nReason: ' + reason)) {
+        return;
+    }
+
+    $.post('ajax/membership_ajax.php', {
+        method: 'deactivate_package',
+        cp_id: id,
+        reason: reason
+    }, function(res){
+        try {
+            var r = (typeof res === 'object') ? res : JSON.parse(res);
+            if (r.error) {
+                alert('Error: ' + r.msg);
+            } else {
+                alert('✅ ' + r.msg);
+                $('#deactivatePackageModal').hide();
+                loadReports();
+            }
+        } catch(e) {
+            alert('Server error occurred.');
+        }
     });
 }
 </script>

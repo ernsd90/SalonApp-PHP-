@@ -188,6 +188,12 @@ function apply_membership_schema() {
         mysqli_query($conn, "UPDATE `hr_customer_packages` SET `paid_amount` = `purchase_price` + `gst_amount`, `remaining_amount` = 0");
     }
     mysqli_query($conn, "ALTER TABLE `hr_customer_packages` MODIFY `sold_by` VARCHAR(255) DEFAULT NULL");
+    mysqli_query($conn, "ALTER TABLE `hr_customer_packages` MODIFY `status` ENUM('active','expired','refunded','fully_used','deactivated') NOT NULL DEFAULT 'active'");
+    $pkg_deact_check = mysqli_query($conn, "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'hr_customer_packages' AND COLUMN_NAME = 'deactivated_reason'");
+    if ($pkg_deact_check && mysqli_num_rows($pkg_deact_check) === 0) {
+        mysqli_query($conn, "ALTER TABLE `hr_customer_packages` ADD COLUMN `deactivated_reason` VARCHAR(255) NULL AFTER `notes`, ADD COLUMN `deactivated_at` DATETIME NULL AFTER `deactivated_reason`, ADD COLUMN `deactivated_by` INT UNSIGNED NULL AFTER `deactivated_at`");
+    }
 }
 
 // ──────────────────────────────────────────────────────────
@@ -1221,12 +1227,33 @@ function package_report_data() {
 
     $pkg_list = select_array("SELECT cp.cp_id, cp.package_name, cp.purchase_price, cp.paid_amount,
         cp.remaining_amount, cp.status, cp.purchase_date, cp.expiry_date, cp.invoice_id, cp.payment_mode,
+        cp.created_at, cp.notes, cp.deactivated_reason, cp.deactivated_at,
         COALESCE(cp.invoice_id, (SELECT invoice_id FROM hr_invoice WHERE cust_id=c.cust_id AND delete_bill=0 ORDER BY invoice_id DESC LIMIT 1)) as effective_invoice_id,
         c.cust_id, c.cust_name, c.cust_mobile
         FROM hr_customer_packages cp
         JOIN hr_customer c ON c.cust_id=cp.cust_id
         WHERE cp.salon_id='$salon_id' AND (DATE(cp.created_at) BETWEEN '$from' AND '$to' OR (cp.purchase_date IS NOT NULL AND cp.purchase_date BETWEEN '$from' AND '$to'))
         ORDER BY cp.cp_id DESC");
+
+    // Detect duplicate packages: Same customer (cust_id / cust_mobile), same package name, and same timing (purchase_date or created_at date)
+    $dup_res = select_array("SELECT cust_id, LOWER(TRIM(package_name)) as pkg_name, DATE(COALESCE(created_at, purchase_date)) as p_date, COUNT(*) as cnt
+        FROM hr_customer_packages
+        WHERE salon_id='$salon_id'
+        GROUP BY cust_id, LOWER(TRIM(package_name)), DATE(COALESCE(created_at, purchase_date))
+        HAVING cnt > 1");
+    $dup_map = [];
+    if ($dup_res) {
+        foreach ($dup_res as $dr) {
+            $dup_map[$dr['cust_id'] . '|' . $dr['pkg_name'] . '|' . $dr['p_date']] = intval($dr['cnt']);
+        }
+    }
+    foreach ($pkg_list as &$p) {
+        $p_date = !empty($p['created_at']) ? date('Y-m-d', strtotime($p['created_at'])) : $p['purchase_date'];
+        $key = $p['cust_id'] . '|' . strtolower(trim($p['package_name'])) . '|' . $p_date;
+        $p['is_duplicate'] = isset($dup_map[$key]) ? 1 : 0;
+        $p['dup_count'] = $dup_map[$key] ?? 1;
+    }
+    unset($p);
 
     return [
         'error'         => 0,
@@ -1236,6 +1263,7 @@ function package_report_data() {
         'total_revenue' => floatval($revenue['total']),
         'liability_rows'=> $liability_rows,
         'pkg_list'      => $pkg_list,
+        'is_superadmin' => function_exists('is_superadmin') ? is_superadmin() : false,
     ];
 }
 
@@ -1499,5 +1527,47 @@ function credit_customer_wallet($cust_id, $amount, $reference_cm_id, $remark) {
         old_balance='$old_balance', new_balance='$new_balance',
         change_type='credit', reason='$remark_esc', reference='cm_$reference_cm_id'");
     return $new_balance;
+}
+
+function deactivate_package() {
+    global $salon_id, $user_id, $conn;
+
+    if (!function_exists('is_superadmin') || !is_superadmin()) {
+        return ['error' => 1, 'msg' => 'Access denied: Only Superadmin can deactivate packages.'];
+    }
+
+    $cp_id = intval($_POST['cp_id'] ?? 0);
+    $reason = trim($_POST['reason'] ?? '');
+
+    if (!$cp_id) {
+        return ['error' => 1, 'msg' => 'Invalid package ID.'];
+    }
+    if (empty($reason)) {
+        return ['error' => 1, 'msg' => 'Please provide a reason for deactivation.'];
+    }
+
+    $pkg = select_row("SELECT * FROM hr_customer_packages WHERE cp_id='$cp_id' AND salon_id='$salon_id'");
+    if (!$pkg) {
+        return ['error' => 1, 'msg' => 'Package not found or access denied.'];
+    }
+    if ($pkg['status'] === 'deactivated') {
+        return ['error' => 1, 'msg' => 'Package is already deactivated.'];
+    }
+
+    $now = date('Y-m-d H:i:s');
+    $esc_reason = mysqli_real_escape_string($conn, $reason);
+
+    $updated = update_query("UPDATE hr_customer_packages SET 
+        status='deactivated', 
+        deactivated_reason='$esc_reason', 
+        deactivated_at='$now', 
+        deactivated_by='$user_id' 
+        WHERE cp_id='$cp_id'");
+
+    if ($updated) {
+        return ['error' => 0, 'msg' => 'Package #' . $cp_id . ' deactivated successfully.'];
+    } else {
+        return ['error' => 1, 'msg' => 'Failed to deactivate package.'];
+    }
 }
 ?>
