@@ -171,6 +171,14 @@ $salon_name_val = $salon_row ? $salon_row['salon_name'] : 'Our Salon';
                     <option value="">All Payment Modes</option>
                 </select>
             </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <label style="font-weight:600;font-size:13px;color:var(--text-muted);margin:0;">Billing</label>
+                <select id="pkg_billing_filter" class="form-control" style="width:160px;padding:6px 12px;height:auto;font-size:13px;border-radius:8px;">
+                    <option value="">All Packages</option>
+                    <option value="Used in Billing">Used in Billing</option>
+                    <option value="Never used">Never Used</option>
+                </select>
+            </div>
             <div style="display:flex;align-items:center;margin-left:auto;">
                 <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:700;color:#b91c1c;background:#fee2e2;padding:6px 12px;border-radius:8px;border:1px solid #fecaca;margin:0;" title="Show only packages with suspected duplicate entries">
                     <input type="checkbox" id="pkg_dup_filter" style="accent-color:#e11d48;cursor:pointer;">
@@ -442,6 +450,34 @@ function loadReports() {
                             ? '<div style="margin-top:4px;"><span style="background:#fee2e2;color:#b91c1c;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;" title="Same customer, package, and timing detected"><i class="ph-bold ph-warning-circle"></i> Duplicate Alert ('+p.dup_count+' entries)</span></div>' 
                             : '';
 
+                        // Billing redemption status: which package is used for billing
+                        var billingBadge = '';
+                        if (p.is_used_in_billing == 1) {
+                            var invLinks = '';
+                            if (p.invoice_ids) {
+                                var invArr = p.invoice_ids.split(',');
+                                var displayInvs = invArr.slice(0, 3).map(function(inv){
+                                    return '<a href="print_invoice.php?invoice_id='+inv+'" target="_blank" style="color:#047857;text-decoration:underline;font-weight:700;">#'+inv+'</a>';
+                                }).join(', ');
+                                if (invArr.length > 3) {
+                                    displayInvs += ' +' + (invArr.length - 3) + ' more';
+                                }
+                                invLinks = '<div style="font-size:11px;color:#047857;margin-top:2px;" title="All linked bills: '+p.invoice_ids+'">Bills: ' + displayInvs + '</div>';
+                            }
+                            billingBadge = '<div style="margin-top:4px;">' +
+                                '<span style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;" title="Used in '+p.bill_count+' bills ('+p.total_used+' sessions redeemed)">' +
+                                    '<i class="ph-bold ph-receipt"></i> Used in Billing (' + p.total_used + (p.total_plan_qty ? '/' + p.total_plan_qty : '') + ' used in ' + p.bill_count + ' bill' + (p.bill_count > 1 ? 's' : '') + ')' +
+                                '</span>' +
+                                invLinks +
+                            '</div>';
+                        } else {
+                            billingBadge = '<div style="margin-top:4px;">' +
+                                '<span style="background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;" title="No bills generated using this package yet">' +
+                                    '<i class="ph ph-minus-circle"></i> Never used in billing' +
+                                '</span>' +
+                            '</div>';
+                        }
+
                         var statusColors = {active:'#059669',expired:'#dc2626',refunded:'#6b7280',fully_used:'#7c3aed',deactivated:'#991b1b'};
                         var sc = statusColors[p.status] || '#6b7280';
                         var statusDisplay = '<span style="background:'+sc+'20;color:'+sc+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;text-transform:capitalize;">'+p.status.replace('_',' ')+'</span>';
@@ -481,13 +517,13 @@ function loadReports() {
                         var walletBtn2 = '<button class="modalButtonCommon" data-href="customer_membership_view.php?cust_id='+p.cust_id+'" title="Wallet Ledger" style="background:#f3e8ff;color:#9333ea;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128179; Ledger</button>';
 
                         var deactivateBtn = (IS_SUPERADMIN && p.status !== 'deactivated') 
-                            ? '<button class="btn-deactivate-pkg" data-id="'+p.cp_id+'" data-name="'+$('<div>').text(p.package_name).html()+'" data-cust="'+$('<div>').text(p.cust_name).html()+'" data-mobile="'+(p.cust_mobile||'')+'" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:3px;" title="Superadmin: Deactivate duplicate/invalid package"><i class="ph-bold ph-prohibit"></i> Deactivate</button>'
+                            ? '<button class="btn-deactivate-pkg" data-id="'+p.cp_id+'" data-name="'+$('<div>').text(p.package_name).html()+'" data-cust="'+$('<div>').text(p.cust_name).html()+'" data-mobile="'+(p.cust_mobile||'')+'" data-used="'+p.total_used+'" data-billcount="'+p.bill_count+'" data-bills="'+(p.invoice_ids||'')+'" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:3px;" title="Superadmin: Deactivate duplicate/invalid package"><i class="ph-bold ph-prohibit"></i> Deactivate</button>'
                             : '';
 
                         rows += '<tr style="'+rowStyle+'">' +
                             '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+p.cust_name+'</td>' +
                             '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+p.cust_mobile+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="font-weight:600;">'+p.package_name+'</div>'+dupBadge+'</td>' +
+                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="font-weight:600;">'+p.package_name+'</div>'+dupBadge+billingBadge+'</td>' +
                             '<td data-order="'+parseFloat(p.purchase_price)+'" style="padding:11px 16px;color:var(--primary);font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.purchase_price).toFixed(2)+'</td>' +
                             '<td data-order="'+parseFloat(p.paid_amount||0)+'" style="padding:11px 16px;color:#059669;font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</td>' +
                             '<td data-order="'+outstanding+'" style="padding:11px 16px;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';border-bottom:1px solid #f1f5f9;">₹'+outstanding.toFixed(2)+'</td>' +
@@ -605,6 +641,11 @@ $('#pkg_mode_filter').on('change', function() {
         pkgTable.column(6).search(this.value).draw();
     }
 });
+$('#pkg_billing_filter').on('change', function() {
+    if (pkgTable) {
+        pkgTable.column(2).search(this.value).draw();
+    }
+});
 $('#pkg_dup_filter').on('change', function() {
     if (pkgTable) {
         if (this.checked) {
@@ -700,11 +741,13 @@ $('#btn_export_csv').click(function(){
             <button onclick="$('#deactivatePackageModal').hide();" style="margin-left:auto;background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8;">×</button>
         </div>
 
-        <div style="background:#f8fafc;border:1px solid var(--border-color);border-radius:12px;padding:14px;margin-bottom:16px;">
+        <div style="background:#f8fafc;border:1px solid var(--border-color);border-radius:12px;padding:14px;margin-bottom:14px;">
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:.5px;margin-bottom:4px;">Target Package</div>
             <div id="deact_modal_pkg" style="font-size:15px;font-weight:700;color:#0f172a;"></div>
             <div id="deact_modal_cust" style="font-size:13px;color:var(--text-muted);margin-top:2px;"></div>
         </div>
+
+        <div id="deact_usage_notice" style="margin-bottom:14px;"></div>
 
         <div class="form-group" style="margin-bottom:14px;">
             <label style="font-weight:700;font-size:13px;">Quick Reason</label>
@@ -796,10 +839,28 @@ $(document).on('click', '.btn-deactivate-pkg', function(){
     var pkgName = $(this).data('name');
     var custName = $(this).data('cust');
     var mobile = $(this).data('mobile');
+    var used = parseInt($(this).data('used') || 0);
+    var billCount = parseInt($(this).data('billcount') || 0);
+    var bills = $(this).data('bills') || '';
 
     $('#deact_cp_id').val(id);
     $('#deact_modal_pkg').text(pkgName + ' (ID #' + id + ')');
     $('#deact_modal_cust').text(custName + (mobile ? ' • ' + mobile : ''));
+
+    if (billCount > 0) {
+        $('#deact_usage_notice').html(
+            '<div style="background:#fffbeb;border:1px solid #fef3c7;border-radius:10px;padding:10px 12px;color:#92400e;font-size:12px;line-height:1.4;">' +
+                '<i class="ph-bold ph-warning"></i> <strong>Note:</strong> This package was <strong>used in ' + billCount + ' bill(s)</strong> (Invoice #' + bills + '). Deactivating will prevent any future sessions from being billed.' +
+            '</div>'
+        ).show();
+    } else {
+        $('#deact_usage_notice').html(
+            '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;color:#166534;font-size:12px;">' +
+                '<i class="ph-bold ph-check-circle"></i> <strong>Safe to deactivate:</strong> This package has <strong>never been used</strong> in any billing.' +
+            '</div>'
+        ).show();
+    }
+
     $('#deact_quick_reason').val('');
     $('#deact_reason').val('');
     $('#deactivatePackageModal').css('display', 'flex');

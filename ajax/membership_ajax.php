@@ -1225,7 +1225,7 @@ function package_report_data() {
         WHERE cp.salon_id='$salon_id' AND cp.status='active'
         GROUP BY pi.service_id, cp.pkg_id");
 
-    $pkg_list = select_array("SELECT cp.cp_id, cp.package_name, cp.purchase_price, cp.paid_amount,
+    $pkg_list = select_array("SELECT cp.cp_id, cp.pkg_id, cp.package_name, cp.purchase_price, cp.paid_amount,
         cp.remaining_amount, cp.status, cp.purchase_date, cp.expiry_date, cp.invoice_id, cp.payment_mode,
         cp.created_at, cp.notes, cp.deactivated_reason, cp.deactivated_at,
         COALESCE(cp.invoice_id, (SELECT invoice_id FROM hr_invoice WHERE cust_id=c.cust_id AND delete_bill=0 ORDER BY invoice_id DESC LIMIT 1)) as effective_invoice_id,
@@ -1247,11 +1247,48 @@ function package_report_data() {
             $dup_map[$dr['cust_id'] . '|' . $dr['pkg_name'] . '|' . $dr['p_date']] = intval($dr['cnt']);
         }
     }
+
+    // Billing redemption tracking: which packages have been used for billing
+    $usage_res = select_array("SELECT cp_id, 
+        COALESCE(SUM(qty_used), 0) as total_used, 
+        COUNT(DISTINCT invoice_id) as bill_count, 
+        GROUP_CONCAT(DISTINCT invoice_id ORDER BY invoice_id DESC SEPARATOR ',') as invoice_ids
+        FROM hr_customer_package_usage
+        WHERE invoice_id IS NOT NULL AND invoice_id > 0
+        GROUP BY cp_id");
+    $usage_map = [];
+    if ($usage_res) {
+        foreach ($usage_res as $ur) {
+            $usage_map[$ur['cp_id']] = [
+                'total_used'  => intval($ur['total_used']),
+                'bill_count'  => intval($ur['bill_count']),
+                'invoice_ids' => $ur['invoice_ids'] ?: '',
+            ];
+        }
+    }
+
+    // Total session count in package definition
+    $plan_items_res = select_array("SELECT pkg_id, SUM(quantity) as total_qty FROM hr_package_items GROUP BY pkg_id");
+    $plan_qty_map = [];
+    if ($plan_items_res) {
+        foreach ($plan_items_res as $pi) {
+            $plan_qty_map[$pi['pkg_id']] = intval($pi['total_qty']);
+        }
+    }
+
     foreach ($pkg_list as &$p) {
         $p_date = !empty($p['created_at']) ? date('Y-m-d', strtotime($p['created_at'])) : $p['purchase_date'];
         $key = $p['cust_id'] . '|' . strtolower(trim($p['package_name'])) . '|' . $p_date;
         $p['is_duplicate'] = isset($dup_map[$key]) ? 1 : 0;
         $p['dup_count'] = $dup_map[$key] ?? 1;
+
+        $cid = $p['cp_id'];
+        $u = $usage_map[$cid] ?? ['total_used' => 0, 'bill_count' => 0, 'invoice_ids' => ''];
+        $p['total_used'] = $u['total_used'];
+        $p['bill_count'] = $u['bill_count'];
+        $p['invoice_ids'] = $u['invoice_ids'];
+        $p['is_used_in_billing'] = ($u['total_used'] > 0 || $u['bill_count'] > 0) ? 1 : 0;
+        $p['total_plan_qty'] = $plan_qty_map[$p['pkg_id']] ?? 0;
     }
     unset($p);
 
