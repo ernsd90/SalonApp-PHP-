@@ -2,9 +2,85 @@
 include 'header.php'; 
 $salon_row = select_row("SELECT salon_name FROM hr_salon WHERE salon_id='$salon_id'");
 $salon_name_val = $salon_row ? $salon_row['salon_name'] : 'Our Salon';
+$can_deactivate_pkg = (function_exists('is_superadmin') && is_superadmin()) 
+    || in_array(get_session_data('user_type'), [1, 2]) 
+    || in_array(get_session_data('user_id'), [1, 8, 13, 18]);
 ?>
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
 
+<style>
+/* Modern Report Table Styling */
+#pkg_report_table, #mem_report_table {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    width: 100% !important;
+}
+
+#pkg_report_table thead th, #mem_report_table thead th {
+    background: #f8fafc !important;
+    color: #475569 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    padding: 12px 14px !important;
+    border-top: none !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+    white-space: nowrap !important;
+}
+
+.table-pkg-row td {
+    padding: 12px 14px !important;
+    font-size: 13px !important;
+    vertical-align: middle !important;
+    border-bottom: 1px solid #edf2f7 !important;
+    background-color: #ffffff;
+    transition: background 0.15s ease;
+}
+
+.table-pkg-row:hover td {
+    background-color: #f8fafc !important;
+}
+
+/* Suspicious / Duplicate rows: Distinct, clean highlight without looking merged */
+.table-pkg-row.row-duplicate td {
+    background-color: #fffafa !important;
+    border-bottom: 1px solid #fed7d7 !important;
+}
+
+.table-pkg-row.row-duplicate td:first-child {
+    border-left: 4px solid #ef4444 !important;
+}
+
+.table-pkg-row.row-duplicate:hover td {
+    background-color: #fff1f2 !important;
+}
+
+/* Deactivated rows */
+.table-pkg-row.row-deactivated td {
+    opacity: 0.88;
+}
+
+/* Table action buttons */
+.btn-pkg-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none !important;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    line-height: 1.25;
+}
+.btn-pkg-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+}
+</style>
 
 <div class="dashboard-header" style="margin-bottom:24px;">
     <h1 style="font-size:24px;font-weight:700;margin-bottom:4px;">Membership & Package Reports</h1>
@@ -264,7 +340,7 @@ $('.rpt-tab').click(function(){
 
 const DOMAIN_SOFTWARE = "<?= DOMAIN_SOFTWARE ?>";
 const SALON_NAME = <?= json_encode($salon_name_val) ?>;
-const IS_SUPERADMIN = <?= (function_exists('is_superadmin') && is_superadmin()) ? 'true' : 'false' ?>;
+const IS_SUPERADMIN = <?= $can_deactivate_pkg ? 'true' : 'false' ?>;
 var allMembersData = [];
 var allPkgData = [];
 var memTable = null;
@@ -442,18 +518,21 @@ function loadReports() {
                 // Package table
                 allPkgData = r.pkg_list || [];
                 var rows = '';
+                var canDeactivateThis = (typeof r.is_superadmin !== 'undefined') ? (r.is_superadmin ? true : false) : IS_SUPERADMIN;
+
                 if(allPkgData.length > 0) {
                     allPkgData.forEach(function(p){
                         var isDup = (p.is_duplicate == 1);
-                        var rowStyle = isDup ? 'background:#fff1f2;border-left:4px solid #f43f5e;' : '';
+                        var rowClass = 'table-pkg-row' + (isDup ? ' row-duplicate' : '') + (p.status === 'deactivated' ? ' row-deactivated' : '');
+                        
                         var dupBadge = isDup 
-                            ? '<div style="margin-top:4px;"><span style="background:#fee2e2;color:#b91c1c;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;" title="Same customer, package, and timing detected"><i class="ph-bold ph-warning-circle"></i> Duplicate Alert ('+p.dup_count+' entries)</span></div>' 
+                            ? '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700;background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;white-space:nowrap;" title="Suspected duplicate: same customer, package & timing detected"><i class="ph-bold ph-warning-circle"></i> Duplicate ('+p.dup_count+')</span>' 
                             : '';
 
                         // Billing redemption status: which package is used for billing
                         var billingBadge = '';
+                        var invLinks = '';
                         if (p.is_used_in_billing == 1) {
-                            var invLinks = '';
                             if (p.invoice_ids) {
                                 var invArr = p.invoice_ids.split(',');
                                 var displayInvs = invArr.slice(0, 3).map(function(inv){
@@ -462,41 +541,39 @@ function loadReports() {
                                 if (invArr.length > 3) {
                                     displayInvs += ' +' + (invArr.length - 3) + ' more';
                                 }
-                                invLinks = '<div style="font-size:11px;color:#047857;margin-top:2px;" title="All linked bills: '+p.invoice_ids+'">Bills: ' + displayInvs + '</div>';
+                                invLinks = '<div style="font-size:11px;color:#047857;margin-top:3px;display:flex;align-items:center;gap:4px;" title="All linked bills: '+p.invoice_ids+'"><i class="ph ph-file-text"></i> Bills: ' + displayInvs + '</div>';
                             }
-                            billingBadge = '<div style="margin-top:4px;">' +
-                                '<span style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;" title="Used in '+p.bill_count+' bills ('+p.total_used+' sessions redeemed)">' +
-                                    '<i class="ph-bold ph-receipt"></i> Used in Billing (' + p.total_used + (p.total_plan_qty ? '/' + p.total_plan_qty : '') + ' used in ' + p.bill_count + ' bill' + (p.bill_count > 1 ? 's' : '') + ')' +
-                                '</span>' +
-                                invLinks +
-                            '</div>';
+                            billingBadge = '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;white-space:nowrap;" title="Used in '+p.bill_count+' bills ('+p.total_used+' sessions redeemed)"><i class="ph-bold ph-receipt"></i> Billed (' + p.total_used + (p.total_plan_qty ? '/' + p.total_plan_qty : '') + ' in ' + p.bill_count + ' bill' + (p.bill_count > 1 ? 's' : '') + ')</span>';
                         } else {
-                            billingBadge = '<div style="margin-top:4px;">' +
-                                '<span style="background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;" title="No bills generated using this package yet">' +
-                                    '<i class="ph ph-minus-circle"></i> Never used in billing' +
-                                '</span>' +
-                            '</div>';
+                            billingBadge = '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:500;background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;white-space:nowrap;" title="No bills generated using this package yet"><i class="ph ph-minus-circle"></i> Unbilled</span>';
                         }
 
-                        var statusColors = {active:'#059669',expired:'#dc2626',refunded:'#6b7280',fully_used:'#7c3aed',deactivated:'#991b1b'};
-                        var sc = statusColors[p.status] || '#6b7280';
-                        var statusDisplay = '<span style="background:'+sc+'20;color:'+sc+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;text-transform:capitalize;">'+p.status.replace('_',' ')+'</span>';
-                        if (p.status === 'deactivated' && p.deactivated_reason) {
-                            statusDisplay += '<div style="font-size:11px;color:#991b1b;margin-top:4px;max-width:160px;line-height:1.2;font-style:italic;" title="'+$('<div>').text(p.deactivated_reason).html()+'">Reason: '+$('<div>').text(p.deactivated_reason).html()+'</div>';
+                        var statusDisplay = '';
+                        if (p.status === 'deactivated') {
+                            statusDisplay = '<span style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;"><i class="ph-bold ph-prohibit"></i> Deactivated</span>';
+                            if (p.deactivated_reason) {
+                                statusDisplay += '<div style="font-size:10.5px;color:#991b1b;background:#fff5f5;border:1px solid #fed7d7;border-radius:6px;padding:3px 6px;margin-top:4px;line-height:1.3;max-width:170px;word-break:break-word;" title="'+$('<div>').text(p.deactivated_reason).html()+'"><strong>Reason:</strong> '+$('<div>').text(p.deactivated_reason).html()+'</div>';
+                            }
+                        } else if (p.status === 'active') {
+                            statusDisplay = '<span style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;"><i class="ph-bold ph-check"></i> Active</span>';
+                        } else {
+                            var statusColors = {expired:'#dc2626',refunded:'#d97706',fully_used:'#7c3aed'};
+                            var sc = statusColors[p.status] || '#64748b';
+                            statusDisplay = '<span style="background:'+sc+'15;color:'+sc+';border:1px solid '+sc+'40;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;text-transform:capitalize;white-space:nowrap;">'+p.status.replace('_',' ')+'</span>';
                         }
 
                         var timeStr = p.created_at ? p.created_at.substring(11, 16) : '';
-                        var timingDisplay = '<div style="font-weight:600;">' + p.purchase_date + '</div>' + 
-                            (timeStr ? '<div style="font-size:11px;color:var(--text-muted);"><i class="ph ph-clock"></i> ' + timeStr + '</div>' : '');
+                        var timingDisplay = '<div style="font-weight:600;color:#1e293b;white-space:nowrap;">' + p.purchase_date + '</div>' + 
+                            (timeStr ? '<div style="font-size:11px;color:#64748b;margin-top:2px;display:inline-flex;align-items:center;gap:3px;background:#f8fafc;padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0;white-space:nowrap;"><i class="ph ph-clock"></i> ' + timeStr + '</div>' : '');
 
                         var outstanding = parseFloat(p.remaining_amount||0);
                         var mode = (p.payment_mode||'—').toUpperCase();
 
                         var clearBtn = (outstanding > 0 && p.status !== 'deactivated')
-                            ? '<button class="btn-clear-outstanding" data-type="pkg" data-id="'+p.cp_id+'" data-amount="'+outstanding.toFixed(2)+'" data-name="'+$('<div>').text(p.package_name).html()+'" style="background:#fff7ed;color:#d97706;border:1px solid #fed7aa;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128176; Clear Due</button>'
+                            ? '<button class="btn-pkg-action btn-clear-outstanding" data-type="pkg" data-id="'+p.cp_id+'" data-amount="'+outstanding.toFixed(2)+'" data-name="'+$('<div>').text(p.package_name).html()+'" style="background:#fffbeb;color:#b45309;border:1px solid #fde68a;" title="Clear Due Amount"><i class="ph-bold ph-coins"></i> Clear Due</button>'
                             : '';
                         var printBtn = p.invoice_id
-                            ? '<a href="print_invoice.php?invoice_id='+p.invoice_id+'" target="_blank" style="background:#e0e7ff;color:#4f46e5;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">🖨 Print</a>'
+                            ? '<a href="print_invoice.php?invoice_id='+p.invoice_id+'" target="_blank" class="btn-pkg-action" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;" title="Print Invoice"><i class="ph ph-printer"></i> Print</a>'
                             : '';
                         var feedbackUrl = p.effective_invoice_id ? DOMAIN_SOFTWARE + 'feedback.php?inv=' + p.effective_invoice_id : '';
                         var completeProfileUrl = p.effective_invoice_id ? DOMAIN_SOFTWARE + 'complete_profile.php?inv=' + p.effective_invoice_id : '';
@@ -513,25 +590,29 @@ function loadReports() {
                             'Warm regards,\n' +
                             'Team *' + SALON_NAME + '*';
                         var waPhone2 = (p.cust_mobile||'').replace(/[^0-9]/g,'');
-                        var waBtn = waPhone2 ? '<a href="https://wa.me/91'+waPhone2+'?text='+encodeURIComponent(waMsg2)+'" target="_blank" style="background:#dcfce7;color:#15803d;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;">&#128172; WA</a>' : '';
-                        var walletBtn2 = '<button class="modalButtonCommon" data-href="customer_membership_view.php?cust_id='+p.cust_id+'" title="Wallet Ledger" style="background:#f3e8ff;color:#9333ea;border:none;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">&#128179; Ledger</button>';
+                        var waBtn = waPhone2 ? '<a href="https://wa.me/91'+waPhone2+'?text='+encodeURIComponent(waMsg2)+'" target="_blank" class="btn-pkg-action" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;" title="Send WhatsApp Message"><i class="ph-bold ph-whatsapp-logo"></i> WA</a>' : '';
+                        var walletBtn2 = '<button class="btn-pkg-action modalButtonCommon" data-href="customer_membership_view.php?cust_id='+p.cust_id+'" title="Wallet Ledger" style="background:#faf5ff;color:#7e22ce;border:1px solid #e9d5ff;"><i class="ph ph-wallet"></i> Ledger</button>';
 
-                        var deactivateBtn = (IS_SUPERADMIN && p.status !== 'deactivated') 
-                            ? '<button class="btn-deactivate-pkg" data-id="'+p.cp_id+'" data-name="'+$('<div>').text(p.package_name).html()+'" data-cust="'+$('<div>').text(p.cust_name).html()+'" data-mobile="'+(p.cust_mobile||'')+'" data-used="'+p.total_used+'" data-billcount="'+p.bill_count+'" data-bills="'+(p.invoice_ids||'')+'" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:3px;" title="Superadmin: Deactivate duplicate/invalid package"><i class="ph-bold ph-prohibit"></i> Deactivate</button>'
+                        var deactivateBtn = (canDeactivateThis && p.status !== 'deactivated') 
+                            ? '<button class="btn-pkg-action btn-deactivate-pkg" data-id="'+p.cp_id+'" data-name="'+$('<div>').text(p.package_name).html()+'" data-cust="'+$('<div>').text(p.cust_name).html()+'" data-mobile="'+(p.cust_mobile||'')+'" data-used="'+p.total_used+'" data-billcount="'+p.bill_count+'" data-bills="'+(p.invoice_ids||'')+'" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;" title="Deactivate duplicate or invalid package"><i class="ph-bold ph-prohibit"></i> Deactivate</button>'
                             : '';
 
-                        rows += '<tr style="'+rowStyle+'">' +
-                            '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+p.cust_name+'</td>' +
-                            '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+p.cust_mobile+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="font-weight:600;">'+p.package_name+'</div>'+dupBadge+billingBadge+'</td>' +
-                            '<td data-order="'+parseFloat(p.purchase_price)+'" style="padding:11px 16px;color:var(--primary);font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.purchase_price).toFixed(2)+'</td>' +
-                            '<td data-order="'+parseFloat(p.paid_amount||0)+'" style="padding:11px 16px;color:#059669;font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</td>' +
-                            '<td data-order="'+outstanding+'" style="padding:11px 16px;font-weight:700;color:'+(outstanding>0?'#dc2626':'#059669')+';border-bottom:1px solid #f1f5f9;">₹'+outstanding.toFixed(2)+'</td>' +
-                            '<td style="padding:11px 16px;font-size:12px;border-bottom:1px solid #f1f5f9;">'+mode+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+timingDisplay+'</td>' +
-                            '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+(p.expiry_date||'—')+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+statusDisplay+'</td>' +
-                            '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;"><div style="display:flex;gap:4px;flex-wrap:nowrap;">'+clearBtn+printBtn+walletBtn2+deactivateBtn+waBtn+'</div></td>' +
+                        rows += '<tr class="'+rowClass+'">' +
+                            '<td><div style="font-weight:700;color:#0f172a;">'+p.cust_name+'</div></td>' +
+                            '<td style="white-space:nowrap;"><div style="color:#475569;font-size:12.5px;font-weight:500;"><i class="ph ph-phone" style="font-size:11px;opacity:0.7;"></i> '+(p.cust_mobile||'—')+'</div></td>' +
+                            '<td>' +
+                                '<div style="font-weight:600;color:#0f172a;line-height:1.3;">'+p.package_name+'</div>' +
+                                '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;align-items:center;">' + dupBadge + billingBadge + '</div>' +
+                                invLinks +
+                            '</td>' +
+                            '<td data-order="'+parseFloat(p.purchase_price)+'" style="font-weight:700;color:#0f172a;white-space:nowrap;">₹'+parseFloat(p.purchase_price).toFixed(2)+'</td>' +
+                            '<td data-order="'+parseFloat(p.paid_amount||0)+'" style="font-weight:700;color:#059669;white-space:nowrap;">₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</td>' +
+                            '<td data-order="'+outstanding+'" style="font-weight:700;white-space:nowrap;color:'+(outstanding>0?'#dc2626':'#059669')+';">₹'+outstanding.toFixed(2)+'</td>' +
+                            '<td style="white-space:nowrap;"><span style="background:#f1f5f9;color:#334155;padding:2px 7px;border-radius:4px;font-size:11.5px;font-weight:600;">'+mode+'</span></td>' +
+                            '<td>'+timingDisplay+'</td>' +
+                            '<td style="color:#64748b;font-size:12.5px;white-space:nowrap;">'+(p.expiry_date||'—')+'</td>' +
+                            '<td>'+statusDisplay+'</td>' +
+                            '<td><div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;min-width:140px;">'+clearBtn+printBtn+walletBtn2+deactivateBtn+waBtn+'</div></td>' +
                         '</tr>';
                     });
                 } else {
@@ -649,7 +730,7 @@ $('#pkg_billing_filter').on('change', function() {
 $('#pkg_dup_filter').on('change', function() {
     if (pkgTable) {
         if (this.checked) {
-            pkgTable.column(2).search('Duplicate Alert').draw();
+            pkgTable.column(2).search('Duplicate').draw();
         } else {
             pkgTable.column(2).search('').draw();
         }

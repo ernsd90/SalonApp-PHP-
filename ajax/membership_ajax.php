@@ -1300,7 +1300,7 @@ function package_report_data() {
         'total_revenue' => floatval($revenue['total']),
         'liability_rows'=> $liability_rows,
         'pkg_list'      => $pkg_list,
-        'is_superadmin' => function_exists('is_superadmin') ? is_superadmin() : false,
+        'is_superadmin' => can_deactivate_package(),
     ];
 }
 
@@ -1566,11 +1566,17 @@ function credit_customer_wallet($cust_id, $amount, $reference_cm_id, $remark) {
     return $new_balance;
 }
 
+function can_deactivate_package() {
+    $uid = get_session_data('user_id');
+    $utype = get_session_data('user_type');
+    return (function_exists('is_superadmin') && is_superadmin()) || in_array($utype, [1, 2]) || in_array($uid, [1, 8, 13, 18]);
+}
+
 function deactivate_package() {
     global $salon_id, $user_id, $conn;
 
-    if (!function_exists('is_superadmin') || !is_superadmin()) {
-        return ['error' => 1, 'msg' => 'Access denied: Only Superadmin can deactivate packages.'];
+    if (!can_deactivate_package()) {
+        return ['error' => 1, 'msg' => 'Access denied: Only Superadmin / Admin can deactivate packages.'];
     }
 
     $cp_id = intval($_POST['cp_id'] ?? 0);
