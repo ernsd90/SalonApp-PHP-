@@ -14,6 +14,19 @@ $salon_name_val = $salon_row ? $salon_row['salon_name'] : 'Our Salon';
 <!-- Date Filter -->
 <div class="card-modern" style="background:white;border-radius:16px;border:1px solid var(--border-color);box-shadow:var(--shadow-sm);padding:20px 24px;margin-bottom:24px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;">
     <div class="form-group" style="margin:0;flex:1;min-width:160px;">
+        <label>Time Period</label>
+        <select id="date_preset" class="form-control" onchange="applyDatePreset(this.value)">
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+            <option value="last_2">Last 2 Months</option>
+            <option value="last_3">Last 3 Months</option>
+            <option value="last_4">Last 4 Months</option>
+            <option value="last_6">Last 6 Months</option>
+            <option value="last_12">Last 1 Year</option>
+            <option value="custom" selected>Custom</option>
+        </select>
+    </div>
+    <div class="form-group" style="margin:0;flex:1;min-width:160px;">
         <label>From Date</label>
         <input type="date" id="rpt_from" class="form-control" value="<?= date('Y-m-01') ?>">
     </div>
@@ -163,6 +176,7 @@ $salon_name_val = $salon_row ? $salon_row['salon_name'] : 'Our Salon';
             <thead style="background:#f8fafc;">
                 <tr>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);text-align:left;">Customer</th>
+                    <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);text-align:left;">Mobile</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Package</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Price</th>
                     <th style="padding:12px 16px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border-color);">Paid</th>
@@ -175,7 +189,7 @@ $salon_name_val = $salon_row ? $salon_row['salon_name'] : 'Our Salon';
                 </tr>
             </thead>
             <tbody id="pkg_report_body">
-                <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">Click "Load Reports" to view data.</td></tr>
+                <tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">Click "Load Reports" to view data.</td></tr>
             </tbody>
         </table>
     </div>
@@ -239,6 +253,37 @@ var allMembersData = [];
 var allPkgData = [];
 var memTable = null;
 var pkgTable = null;
+
+function applyDatePreset(val) {
+    if (!val || val === 'custom') return;
+    
+    var today = new Date();
+    var from = new Date();
+    var to = new Date();
+    
+    if (val === 'this_month') {
+        from = new Date(today.getFullYear(), today.getMonth(), 1);
+    } else if (val === 'last_month') {
+        from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        to = new Date(today.getFullYear(), today.getMonth(), 0);
+    } else if (val === 'last_2') {
+        from = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+    } else if (val === 'last_3') {
+        from = new Date(today.getFullYear(), today.getMonth() - 3, 1);
+    } else if (val === 'last_4') {
+        from = new Date(today.getFullYear(), today.getMonth() - 4, 1);
+    } else if (val === 'last_6') {
+        from = new Date(today.getFullYear(), today.getMonth() - 6, 1);
+    } else if (val === 'last_12') {
+        from = new Date(today.getFullYear(), today.getMonth() - 12, 1);
+    }
+    
+    $('#rpt_from').val(from.toISOString().split('T')[0]);
+    $('#rpt_to').val(to.toISOString().split('T')[0]);
+    
+    // Auto-load reports when preset changes
+    $('#btn_load_reports').click();
+}
 
 function loadReports() {
     var from = $('#rpt_from').val();
@@ -389,6 +434,7 @@ function loadReports() {
 
                     rows += '<tr>' +
                         '<td style="padding:11px 16px;font-weight:600;border-bottom:1px solid #f1f5f9;">'+p.cust_name+'</td>' +
+                        '<td style="padding:11px 16px;color:var(--text-muted);font-size:13px;border-bottom:1px solid #f1f5f9;">'+p.cust_mobile+'</td>' +
                         '<td style="padding:11px 16px;border-bottom:1px solid #f1f5f9;">'+p.package_name+'</td>' +
                         '<td data-order="'+parseFloat(p.purchase_price)+'" style="padding:11px 16px;color:var(--primary);font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.purchase_price).toFixed(2)+'</td>' +
                         '<td data-order="'+parseFloat(p.paid_amount||0)+'" style="padding:11px 16px;color:#059669;font-weight:600;border-bottom:1px solid #f1f5f9;">₹'+parseFloat(p.paid_amount||0).toFixed(2)+'</td>' +
@@ -401,7 +447,7 @@ function loadReports() {
                     '</tr>';
                 });
             } else {
-                rows = '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
+                rows = '<tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);">No data for selected period.</td></tr>';
             }
             
             $('#pkg_report_body').html(rows);
@@ -414,9 +460,9 @@ function loadReports() {
                 pkgTable = $('#pkg_report_table').DataTable({
                     responsive: true,
                     pageLength: 10,
-                    order: [[6, 'desc']],
+                    order: [[7, 'desc']],
                     columnDefs: [
-                        { orderable: false, targets: [9] }
+                        { orderable: false, targets: [10] }
                     ]
                 });
             } else {
